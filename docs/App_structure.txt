@@ -1,0 +1,62 @@
+P_manage_system/
+│── backend/                   # Node.js Backend
+│   ├── src/                   # Source Code
+│   │   ├── config/            # Configuration Files
+│   │   │   ├── index.js       # Load .env variables
+│   │   │   ├── db.js          # MySQL Database connection
+│   │   │   ├── auth.js        # Azure & Google SSO strategy
+│   │   ├── controllers/       # Business Logic Controllers
+│   │   │   ├── authController.js
+│   │   │   ├── propertyController.js
+│   │   ├── models/            # Database Models
+│   │   │   ├── User.js
+│   │   │   ├── Property.js
+│   │   ├── routes/            # API Routes
+│   │   │   ├── authRoutes.js
+│   │   │   ├── propertyRoutes.js
+│   │   ├── middleware/        # Middleware (Auth, Logs, etc.)
+│   │   │   ├── authMiddleware.js
+│   │   │   ├── errorHandler.js
+│   │   ├── utils/             # Utility Functions
+│   │   │   ├── logger.js
+│   │   │   ├── responseHandler.js
+│   │   ├── app.js             # Express App Configuration
+│   │   ├── server.js          # Main Entry Point
+│   ├── .env                   # Environment Variables
+│   ├── package.json           # Dependencies & Scripts
+│   ├── Dockerfile             # Containerization
+│   ├── docker-compose.yml     # Docker Compose for Services
+│
+│── frontend/                   # React Frontend
+│   ├── public/
+│   ├── src/
+│   │   ├── assets/             # Static files
+│   │   ├── components/         # Reusable Components
+│   │   ├── pages/              # Page Components
+│   │   ├── services/           # API Calls
+│   │   ├── context/            # Global State Management
+│   │   ├── hooks/              # Custom Hooks
+│   │   ├── App.js              # Main App Component
+│   │   ├── index.js            # React Root
+│   ├── .env                    # Frontend Environment Variables
+│   ├── package.json            # Dependencies & Scripts
+│   ├── Dockerfile              # Frontend Docker
+│
+│── database/                    # MySQL Database
+│   ├── init.sql                  # Schema Initialization
+│   ├── migrations/               # DB Migrations
+│
+│── ci-cd/                        # CI/CD Configuration
+│   ├── github-actions/           # GitHub Actions Workflows
+│   ├── azure-pipelines/          # Azure Pipelines Config
+│   ├── docker/                   # Docker Build Scripts
+│
+│── tests/                        # Test Cases
+│   ├── backend/
+│   ├── frontend/
+│
+│── docs/                         # Documentation
+│
+│── .gitignore                     # Ignore unnecessary files
+│── docker-compose.yml              # Multi-Service Docker Config
+│── README.md                       # Project Documentation

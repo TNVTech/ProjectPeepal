@@ -1,0 +1,10 @@
+Folder       |  File	Purpose
+backend      |	REST API, Auth, DB models
+frontend     |	React app
+database     |	SQL schema & migrations
+ci-cd        | 	GitHub Actions & Azure Pipelines
+tests        |	Unit/e2e tests
+docs         |	Developer documentation
+.env	     |  Secrets and config
+Dockerfile   |  docker-compose.yml	Containerization setup
+README.md    |	Project overview and usage
