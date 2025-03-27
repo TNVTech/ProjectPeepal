@@ -11,7 +11,7 @@ const cookieParser = require('cookie-parser');
 // remove this in webapp keep this in localhost
 // dotenv.config({ path: path.join(__dirname, '../.env') });
 // use this instead in webappp
-dot.env.config(); 
+//dot.env.config(); 
 
 // Create Express app
 const app = express();
