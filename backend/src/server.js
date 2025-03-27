@@ -8,7 +8,11 @@ const path = require('path');
 const cookieParser = require('cookie-parser');
 
 // Load environment variables from parent directory
-dotenv.config({ path: path.join(__dirname, '../.env') });
+// do not use this for webapp only on localhost
+// dotenv.config({ path: path.join(__dirname, '../.env') });
+
+// use this in web app
+dotenv.config();
 
 // Create Express app
 const app = express();
