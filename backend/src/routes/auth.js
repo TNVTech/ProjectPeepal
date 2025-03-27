@@ -36,7 +36,7 @@ if (SSO_PROVIDER === 'azure') {
         redirectUrl: process.env.AZURE_REDIRECT_URL,
         allowHttpForRedirectUrl: true,
         validateIssuer: false, // Set to false for development
-        passReqToCallback: true,
+        passReqToCallback: true, 
         scope: AZURE_SCOPES,
         loggingLevel: 'info',
         nonceLifetime: 3600,
@@ -143,8 +143,6 @@ router.get('/callback', (req, res, next) => {
     passport.authenticate(strategy, { 
         failureRedirect: '/auth/login',
         failureMessage: true,
-        session: true,
-        response: res,
         scope: scopes
     })(req, res, next);
 }, (req, res) => {
