@@ -71,5 +71,5 @@ jobs:
         with:
           app-name: 'projectpeepal-dev'
           slot-name: 'Production'
-          package: .
+          package: ./backend
           
