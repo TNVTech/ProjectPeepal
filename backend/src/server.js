@@ -8,11 +8,18 @@ const path = require('path');
 const cookieParser = require('cookie-parser');
 
 // Load environment variables from parent directory
+<<<<<<< HEAD
 // do not use this for webapp only on localhost
 // dotenv.config({ path: path.join(__dirname, '../.env') });
 
 // use this in web app
 dotenv.config();
+=======
+// remove this in webapp keep this in localhost
+// dotenv.config({ path: path.join(__dirname, '../.env') });
+// use this instead in webappp
+//dot.env.config(); 
+>>>>>>> test
 
 // Create Express app
 const app = express();
@@ -102,7 +109,7 @@ app.use((err, req, res, next) => {
 });
 
 // Start server
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
     console.log(`SSO Provider: ${process.env.SSO_PROVIDER}`);
