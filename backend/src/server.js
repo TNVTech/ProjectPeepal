@@ -115,7 +115,10 @@ app.get('/', (req, res) => {
 });
 
 // Authentication routes
-app.use('/auth', require('./routes/auth'));
+const authRoutes = require('./routes/auth');
+const permissionRoutes = require('./routes/permissionroutes');
+app.use('/auth', authRoutes);
+app.use('/api/permission', permissionRoutes);
 
 // Protected route example
 app.get('/dashboard', async (req, res) => {
@@ -131,16 +134,99 @@ app.get('/dashboard', async (req, res) => {
         // Get database details
         const [dbInfo] = await pool.query('SELECT DATABASE() as db_name, USER() as db_user, VERSION() as db_version');
         
-        res.json({
-            message: 'Welcome to the Dashboard',
-            user: {
-                displayName: user.displayName,
-                email: user._json.email,
+        // Format user data for response
+        let userData = {};
+        if (process.env.SSO_PROVIDER === 'azure') {
+            userData = {
+                displayName: user.displayName || user.name || 'Unknown User',
+                email: user._json?.email || user.emails?.[0] || user.preferred_username,
                 username: user.preferred_username,
                 oid: user.oid,
                 sub: user.sub,
                 provider: process.env.SSO_PROVIDER
-            },
+            };
+        } else {
+            userData = {
+                displayName: user.displayName || user.name || 'Unknown User',
+                email: user.emails?.[0] || user._json?.email,
+                username: user.username,
+                id: user.id,
+                provider: process.env.SSO_PROVIDER
+            };
+        }
+        
+        // Check if user exists in the users table
+        const [userRows] = await pool.query(
+            'SELECT user_id, u_status FROM users WHERE email = ?',
+            [userData.email]
+        );
+        
+        let userStatus = { status: 'unknown' };
+        let message = 'Welcome to the Dashboard';
+        
+        if (userRows.length > 0) {
+            const userStatusInDb = userRows[0].u_status;
+            if (userStatusInDb === 'active') {
+                // User exists and is active, grant access
+                userStatus = { status: 'success' };
+                message = 'Welcome to the Dashboard';
+            } else if (userStatusInDb === 'revoked') {
+                // User exists but access is revoked
+                userStatus = { status: 'revoked' };
+                message = 'Your access has been revoked. Please contact the administrator.';
+                // Return error response instead of dashboard data
+                return res.status(403).json({
+                    status: 'error',
+                    message: message,
+                    user: userData,
+                    userStatus: userStatus
+                });
+            } else {
+                // User exists but has an unknown status
+                userStatus = { status: 'error' };
+                message = 'Your account status is unknown. Please contact the administrator.';
+                return res.status(403).json({
+                    status: 'error',
+                    message: message,
+                    user: userData,
+                    userStatus: userStatus
+                });
+            }
+        } else {
+            // User doesn't exist in the users table, check permission requests
+            const [requestRows] = await pool.query(
+                'SELECT * FROM permission_requests WHERE email = ?',
+                [userData.email]
+            );
+            
+            if (requestRows.length > 0) {
+                const request = requestRows[0];
+                if (request.u_status === 'rejected') {
+                    userStatus = { status: 'rejected' };
+                    message = 'Your approval request has been rejected. Please contact the administrator for more information.';
+                } else {
+                    userStatus = { status: 'pending' };
+                    message = 'Your login was successful, but your request is pending approval';
+                }
+            } else {
+                // No request exists, create a new one
+                await pool.query(
+                    'INSERT INTO permission_requests (display_name, email, u_status) VALUES (?, ?, ?)',
+                    [userData.displayName, userData.email, 'pending']
+                );
+                
+                userStatus = { status: 'pending' };
+                message = 'Your login was successful, but your request is pending approval';
+            }
+        }
+        
+        // Store user status in session
+        req.session.userStatus = userStatus;
+        
+        res.json({
+            message: message,
+            user: userData,
+            userStatus: userStatus,
             database: {
                 isConnected,
                 details: dbInfo[0],
@@ -150,16 +236,42 @@ app.get('/dashboard', async (req, res) => {
         });
     } catch (error) {
         console.error('Database error:', error);
-        res.status(500).json({
-            message: 'Welcome to the Dashboard',
-            user: {
-                displayName: user.displayName,
-                email: user._json.email,
+        
+        // Format user data for error response
+        let userData = {};
+        if (process.env.SSO_PROVIDER === 'azure') {
+            userData = {
+                displayName: user.displayName || user.name || 'Unknown User',
+                email: user._json?.email || user.emails?.[0] || user.preferred_username,
                 username: user.preferred_username,
                 oid: user.oid,
                 sub: user.sub,
                 provider: process.env.SSO_PROVIDER
-            },
+            };
+        } else {
+            userData = {
+                displayName: user.displayName || user.name || 'Unknown User',
+                email: user.emails?.[0] || user._json?.email,
+                username: user.username,
+                id: user.id,
+                provider: process.env.SSO_PROVIDER
+            };
+        }
+        
+        // Determine message based on user status even in case of error
+        let message = 'Welcome to the Dashboard';
+        if (req.session.userStatus && req.session.userStatus.status === 'pending') {
+            message = 'Your login was successful, but your request is pending approval';
+        } else if (req.session.userStatus && req.session.userStatus.status === 'rejected') {
+            message = 'Your approval request has been rejected. Please contact the administrator for more information.';
+        } else if (req.session.userStatus && req.session.userStatus.status === 'revoked') {
+            message = 'Your access has been revoked. Please contact the administrator.';
+        }
+        
+        res.status(500).json({
+            message: message,
+            user: userData,
+            userStatus: req.session.userStatus || { status: 'unknown' },
             database: {
                 isConnected: false,
                 error: error.message

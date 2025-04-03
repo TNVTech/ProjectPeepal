@@ -1,9 +1,11 @@
 const express = require('express');
-const router = express.Router();
 const passport = require('passport');
+const router = express.Router();
 const AzureADStrategy = require('passport-azure-ad').OIDCStrategy;
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const crypto = require('crypto');
+const permissionController = require('../controllers/permissioncontroller');
+const db = require('../config/db');
 
 // Passport serialization
 passport.serializeUser((user, done) => {
@@ -55,6 +57,9 @@ if (SSO_PROVIDER === 'azure') {
     });
 
     passport.use('azure-ad', azureADStrategy);
+    
+    // Also register the OAuth2 strategy for compatibility
+    passport.use('azure-ad-oauth2', azureADStrategy);
 
     // Azure AD routes
     router.get('/azure', (req, res, next) => {
@@ -145,9 +150,101 @@ router.get('/callback', (req, res, next) => {
         failureMessage: true,
         scope: scopes
     })(req, res, next);
-}, (req, res) => {
+}, async (req, res) => {
     console.log(`${SSO_PROVIDER} Authentication successful`);
-    res.redirect('/dashboard');
+    console.log('User data from SSO:', req.user);
+    
+    try {
+        // Format user data based on the SSO provider
+        let userData = {};
+        
+        if (SSO_PROVIDER === 'azure') {
+            // Azure AD format
+            userData = {
+                displayName: req.user.displayName || req.user.name || 'Unknown User',
+                email: req.user._json.email || req.user.emails?.[0] || req.user.preferred_username,
+                // Add any other fields you need
+            };
+        } else {
+            // Google format
+            userData = {
+                displayName: req.user.displayName || req.user.name || 'Unknown User',
+                email: req.user.emails?.[0] || req.user._json.email,
+                // Add any other fields you need
+            };
+        }
+        
+        console.log('Formatted user data for permission check:', userData);
+        
+        // Check if user exists in the users table
+        const [userRows] = await db.pool.query(
+            'SELECT user_id, u_status FROM users WHERE email = ?',
+            [userData.email]
+        );
+        
+        let userStatus = { status: 'unknown' };
+        
+        if (userRows.length > 0) {
+            const userStatusInDb = userRows[0].u_status;
+            if (userStatusInDb === 'active') {
+                // User exists and is active, grant access
+                userStatus = { status: 'success' };
+                console.log('User exists in the users table and is active, granting access');
+            } else if (userStatusInDb === 'revoked') {
+                // User exists but access is revoked
+                userStatus = { status: 'revoked' };
+                console.log('User exists but access is revoked');
+                // Store the user status in the session
+                req.session.userStatus = userStatus;
+                // Redirect to dashboard with error message
+                return res.redirect('/dashboard');
+            } else {
+                // User exists but has an unknown status
+                userStatus = { status: 'error' };
+                console.log('User exists but has an unknown status:', userStatusInDb);
+                // Store the user status in the session
+                req.session.userStatus = userStatus;
+                // Redirect to dashboard with error message
+                return res.redirect('/dashboard');
+            }
+        } else {
+            // User doesn't exist in the users table, check permission requests
+            const [requestRows] = await db.pool.query(
+                'SELECT * FROM permission_requests WHERE email = ?',
+                [userData.email]
+            );
+            
+            if (requestRows.length > 0) {
+                const request = requestRows[0];
+                if (request.u_status === 'rejected') {
+                    userStatus = { status: 'rejected' };
+                    console.log('Request was rejected');
+                } else {
+                    userStatus = { status: 'pending' };
+                    console.log('Request is pending approval');
+                }
+            } else {
+                // No request exists, create a new one
+                await db.pool.query(
+                    'INSERT INTO permission_requests (display_name, email, u_status) VALUES (?, ?, ?)',
+                    [userData.displayName, userData.email, 'pending']
+                );
+                
+                userStatus = { status: 'pending' };
+                console.log('New permission request created, status is pending');
+            }
+        }
+        
+        // Store the user status in the session
+        req.session.userStatus = userStatus;
+        
+        // Redirect to dashboard
+        res.redirect('/dashboard');
+    } catch (error) {
+        console.error('Error checking user permission:', error);
+        // Still redirect to dashboard, but the frontend will handle the error
+        res.redirect('/dashboard');
+    }
 });
 
 // Common routes for both providers
