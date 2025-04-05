@@ -1,0 +1,99 @@
+/* Custom styles for the dashboard */
+
+/* Sidebar customization */
+.sidebar-dark-primary {
+    background: #343a40;
+}
+
+.sidebar-dark-primary .brand-link {
+    border-bottom: 1px solid #4b545c;
+}
+
+.sidebar-dark-primary .user-panel {
+    border-bottom: 1px solid #4b545c;
+}
+
+/* Navbar customization */
+.navbar-white {
+    background-color: #fff;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.navbar-light .navbar-nav .nav-link {
+    color: #6c757d;
+}
+
+.navbar-light .navbar-nav .nav-link:hover {
+    color: #343a40;
+}
+
+/* Card customization */
+.card {
+    box-shadow: 0 0 1px rgba(0,0,0,.125), 0 1px 3px rgba(0,0,0,.2);
+    margin-bottom: 1rem;
+}
+
+.card-header {
+    background-color: transparent;
+    border-bottom: 1px solid rgba(0,0,0,.125);
+    padding: .75rem 1.25rem;
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+/* Info box customization */
+.info-box {
+    min-height: 80px;
+    background: #fff;
+    width: 100%;
+    box-shadow: 0 0 1px rgba(0,0,0,.125), 0 1px 3px rgba(0,0,0,.2);
+    border-radius: 0.25rem;
+    margin-bottom: 1rem;
+}
+
+.info-box-content {
+    padding: 5px 10px;
+    margin-left: 70px;
+}
+
+.info-box-icon {
+    border-top-left-radius: 0.25rem;
+    border-bottom-left-radius: 0.25rem;
+    display: block;
+    float: left;
+    height: 80px;
+    width: 70px;
+    text-align: center;
+    font-size: 30px;
+    line-height: 80px;
+    background: rgba(0,0,0,.2);
+}
+
+/* User info customization */
+.user-info p {
+    margin-bottom: 0.5rem;
+}
+
+.user-info strong {
+    display: inline-block;
+    width: 100px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .info-box {
+        min-height: 60px;
+    }
+    
+    .info-box-icon {
+        height: 60px;
+        width: 60px;
+        line-height: 60px;
+        font-size: 24px;
+    }
+    
+    .info-box-content {
+        margin-left: 60px;
+    }
+} 

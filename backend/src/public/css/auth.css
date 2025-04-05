@@ -1,0 +1,230 @@
+/* Auth pages styling */
+
+body {
+    background-color: #f4f6f9;
+    font-family: 'Segoe UI', 'Source Sans Pro', sans-serif;
+}
+
+.content-wrapper {
+    background-color: #f4f6f9;
+}
+
+.auth-container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.auth-card {
+    background-color: #fff;
+    border-radius: 4px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    margin-bottom: 20px;
+    overflow: hidden;
+}
+
+.auth-card-header {
+    padding: 20px;
+    border-bottom: 1px solid #eaeaea;
+    display: flex;
+    align-items: center;
+}
+
+.auth-card-header i {
+    font-size: 24px;
+    margin-right: 15px;
+}
+
+.auth-card-body {
+    padding: 20px;
+}
+
+.auth-status-icon {
+    font-size: 48px;
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.auth-status-title {
+    font-size: 24px;
+    font-weight: 600;
+    margin-bottom: 15px;
+    text-align: center;
+}
+
+.auth-status-message {
+    font-size: 16px;
+    line-height: 1.5;
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.auth-details {
+    background-color: #f9f9f9;
+    border-radius: 4px;
+    padding: 15px;
+    margin-top: 20px;
+}
+
+.auth-details-title {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 15px;
+}
+
+.auth-details-item {
+    display: flex;
+    margin-bottom: 10px;
+}
+
+.auth-details-label {
+    font-weight: 600;
+    width: 120px;
+}
+
+.auth-details-value {
+    flex: 1;
+}
+
+.auth-actions {
+    margin-top: 30px;
+    text-align: center;
+}
+
+.auth-button {
+    display: inline-block;
+    padding: 10px 20px;
+    background-color: #0078d4;
+    color: white;
+    border-radius: 4px;
+    text-decoration: none;
+    font-weight: 600;
+    transition: background-color 0.2s;
+}
+
+.auth-button:hover {
+    background-color: #006cbd;
+    color: white;
+    text-decoration: none;
+}
+
+.auth-button-secondary {
+    background-color: #f0f0f0;
+    color: #333;
+    margin-left: 10px;
+}
+
+.auth-button-secondary:hover {
+    background-color: #e0e0e0;
+    color: #333;
+}
+
+/* Status-specific styles */
+.status-pending .auth-status-icon {
+    color: #ffb900;
+}
+
+.status-rejected .auth-status-icon {
+    color: #d13438;
+}
+
+.status-approved .auth-status-icon {
+    color: #107c10;
+}
+
+.status-unknown .auth-status-icon {
+    color: #0078d4;
+}
+
+/* Microsoft-style alert boxes */
+.ms-alert {
+    padding: 15px;
+    border-radius: 4px;
+    margin-bottom: 20px;
+    border-left: 4px solid;
+}
+
+.ms-alert-warning {
+    background-color: #fff4ce;
+    border-left-color: #ffb900;
+    color: #323130;
+}
+
+.ms-alert-danger {
+    background-color: #fde7e9;
+    border-left-color: #d13438;
+    color: #323130;
+}
+
+.ms-alert-success {
+    background-color: #dff6dd;
+    border-left-color: #107c10;
+    color: #323130;
+}
+
+.ms-alert-info {
+    background-color: #deecf9;
+    border-left-color: #0078d4;
+    color: #323130;
+}
+
+/* Microsoft-style badges */
+.ms-badge {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.ms-badge-warning {
+    background-color: #fff4ce;
+    color: #323130;
+}
+
+.ms-badge-danger {
+    background-color: #fde7e9;
+    color: #323130;
+}
+
+.ms-badge-success {
+    background-color: #dff6dd;
+    color: #323130;
+}
+
+.ms-badge-info {
+    background-color: #deecf9;
+    color: #323130;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .auth-container {
+        padding: 10px;
+    }
+    
+    .auth-card-header {
+        padding: 15px;
+    }
+    
+    .auth-card-body {
+        padding: 15px;
+    }
+    
+    .auth-status-icon {
+        font-size: 36px;
+    }
+    
+    .auth-status-title {
+        font-size: 20px;
+    }
+    
+    .auth-details-item {
+        flex-direction: column;
+    }
+    
+    .auth-details-label {
+        width: 100%;
+        margin-bottom: 5px;
+    }
+} 

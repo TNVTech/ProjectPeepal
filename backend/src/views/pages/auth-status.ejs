@@ -1,0 +1,98 @@
+<%- contentFor('body') %>
+
+<div class="auth-container">
+    <div class="auth-card status-<%= status %>">
+        <div class="auth-card-header">
+            <i class="fas fa-user-shield"></i>
+            <h3>Access Request Status</h3>
+        </div>
+        <div class="auth-card-body">
+            <% if (status === 'pending') { %>
+                <div class="auth-status-icon">
+                    <i class="fas fa-clock"></i>
+                </div>
+                <div class="auth-status-title">Request Under Review</div>
+                <div class="auth-status-message">
+                    Your access request is currently being reviewed by our administrators. This process typically takes 1-2 business days.
+                </div>
+                <div class="ms-alert ms-alert-warning">
+                    <p>We will notify you via email at <strong><%= user.email %></strong> once your request has been processed.</p>
+                    <p>If you have any questions, please contact our support team at <a href="mailto:<%= supportEmail %>"><%= supportEmail %></a>.</p>
+                </div>
+            <% } else if (status === 'rejected') { %>
+                <div class="auth-status-icon">
+                    <i class="fas fa-ban"></i>
+                </div>
+                <div class="auth-status-title">Request Rejected</div>
+                <div class="auth-status-message">
+                    Your access request has been rejected. This may be due to one of the following reasons:
+                </div>
+                <div class="ms-alert ms-alert-danger">
+                    <ul>
+                        <li>Insufficient information provided</li>
+                        <li>Request does not meet our access criteria</li>
+                        <li>Security concerns</li>
+                    </ul>
+                    <p class="mt-3">If you believe this is an error or would like to appeal this decision, please contact our support team at <a href="mailto:<%= supportEmail %>"><%= supportEmail %></a>.</p>
+                </div>
+            <% } else if (status === 'approved') { %>
+                <div class="auth-status-icon">
+                    <i class="fas fa-check-circle"></i>
+                </div>
+                <div class="auth-status-title">Request Approved</div>
+                <div class="auth-status-message">
+                    Your access request has been approved! You now have access to the system.
+                </div>
+                <div class="ms-alert ms-alert-success">
+                    <p>You can now access the dashboard to manage your permissions.</p>
+                </div>
+            <% } else { %>
+                <div class="auth-status-icon">
+                    <i class="fas fa-question-circle"></i>
+                </div>
+                <div class="auth-status-title">Unknown Status</div>
+                <div class="auth-status-message">
+                    The status of your request could not be determined.
+                </div>
+                <div class="ms-alert ms-alert-info">
+                    <p>Please contact our support team at <a href="mailto:<%= supportEmail %>"><%= supportEmail %></a> for assistance.</p>
+                </div>
+            <% } %>
+            
+            <div class="auth-details">
+                <div class="auth-details-title">Request Details</div>
+                <div class="auth-details-item">
+                    <div class="auth-details-label">Email:</div>
+                    <div class="auth-details-value"><%= user.email %></div>
+                </div>
+                <div class="auth-details-item">
+                    <div class="auth-details-label">Name:</div>
+                    <div class="auth-details-value"><%= user.displayName || 'Not provided' %></div>
+                </div>
+                <div class="auth-details-item">
+                    <div class="auth-details-label">Status:</div>
+                    <div class="auth-details-value">
+                        <% if (status === 'pending') { %>
+                            <span class="ms-badge ms-badge-warning">Pending</span>
+                        <% } else if (status === 'rejected') { %>
+                            <span class="ms-badge ms-badge-danger">Rejected</span>
+                        <% } else if (status === 'approved') { %>
+                            <span class="ms-badge ms-badge-success">Approved</span>
+                        <% } else { %>
+                            <span class="ms-badge ms-badge-info">Unknown</span>
+                        <% } %>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="auth-actions">
+                <% if (status === 'approved') { %>
+                    <a href="/dashboard" class="auth-button">Go to Dashboard</a>
+                <% } else { %>
+                    <a href="/" class="auth-button">Return to Home</a>
+                    <a href="mailto:<%= supportEmail %>" class="auth-button auth-button-secondary">Contact Support</a>
+                <% } %>
+            </div>
+        </div>
+    </div>
+</div> 

@@ -1,0 +1,13 @@
+<%- contentFor('body') %>
+<div class="error-page">
+    <h2 class="headline text-danger">Error</h2>
+    <div class="error-content">
+        <h3><i class="fas fa-exclamation-triangle text-danger"></i> Oops! Something went wrong.</h3>
+        <p>
+            <%= typeof error !== 'undefined' ? error : 'An unexpected error occurred.' %>
+        </p>
+        <p>
+            Meanwhile, you may <a href="/dashboard">return to dashboard</a>.
+        </p>
+    </div>
+</div> 

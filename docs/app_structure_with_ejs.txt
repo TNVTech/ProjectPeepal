@@ -1,0 +1,67 @@
+P_manage_system/
+│── backend/                    # Node.js Backend (with EJS Frontend)
+│   ├── src/                    # Source Code
+│   │   ├── config/             # Configuration Files
+│   │   │   ├── index.js        # Load .env variables
+│   │   │   ├── db.js           # MySQL Database connection
+│   │   │   ├── auth.js         # Azure & Google SSO strategy
+│   │   ├── controllers/        # Business Logic Controllers
+│   │   │   ├── authController.js
+│   │   │   ├── propertyController.js
+│   │   ├── models/             # Database Models
+│   │   │   ├── User.js
+│   │   │   ├── Property.js
+│   │   ├── routes/             # API & Web Routes
+│   │   │   ├── api/            # API Routes (JSON responses)
+│   │   │   │   ├── authRoutes.js
+│   │   │   │   ├── propertyRoutes.js
+│   │   │   ├── web/            # Web Routes (Render EJS)
+│   │   │   │   ├── homeRoutes.js
+│   │   │   │   ├── adminRoutes.js
+│   │   ├── middleware/         # Middleware (Auth, Logs, etc.)
+│   │   │   ├── authMiddleware.js
+│   │   │   ├── errorHandler.js
+│   │   ├── views/              # EJS Views (Frontend UI)
+│   │   │   ├── layouts/        # Layout Templates
+│   │   │   │   ├── main.ejs    # Main Layout (Header, Footer)
+│   │   │   ├── pages/          # Page Templates
+│   │   │   │   ├── home.ejs    # Homepage
+│   │   │   │   ├── login.ejs   # Login Page
+│   │   │   │   ├── dashboard.ejs # Admin Dashboard
+│   │   │   ├── partials/       # Reusable Components
+│   │   │   │   ├── navbar.ejs  # Navigation Bar
+│   │   │   │   ├── sidebar.ejs # Sidebar Menu
+│   │   │   │   ├── footer.ejs  # Footer
+│   │   ├── public/             # Static Files (CSS, JS, Images)
+│   │   │   ├── css/            # Custom Styles
+│   │   │   │   ├── styles.css
+│   │   │   ├── js/             # Custom JavaScript
+│   │   │   │   ├── scripts.js
+│   │   │   ├── images/         # Image Assets
+│   │   ├── utils/              # Utility Functions
+│   │   │   ├── logger.js
+│   │   │   ├── responseHandler.js
+│   │   ├── app.js              # Express App Configuration
+│   │   ├── server.js           # Main Entry Point
+│   ├── .env                    # Environment Variables
+│   ├── package.json            # Dependencies & Scripts
+│   ├── Dockerfile              # Containerization
+│   ├── docker-compose.yml      # Docker Compose for Services
+│
+│── database/                   # MySQL Database
+│   ├── init.sql                # Schema Initialization
+│   ├── migrations/             # DB Migrations
+│
+│── ci-cd/                      # CI/CD Configuration
+│   ├── github-actions/         # GitHub Actions Workflows
+│   ├── azure-pipelines/        # Azure Pipelines Config
+│   ├── docker/                 # Docker Build Scripts
+│
+│── tests/                      # Test Cases
+│   ├── backend/
+│
+│── docs/                       # Documentation
+│
+│── .gitignore                  # Ignore unnecessary files
+│── docker-compose.yml           # Multi-Service Docker Config
+│── README.md                    # Project Documentation

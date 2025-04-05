@@ -23,12 +23,12 @@ const userExists = async (email) => {
 
 /**
  * Add a new permission request
- * @param {Object} userData - User data from SSO
+ * @param {Object} userData - User data including email, display name, company name, and office location
  * @returns {Promise<Object>} - The created permission request
  */
 const addPermissionRequest = async (userData) => {
     try {
-        console.log('Adding new permission request for user:', userData);
+        console.log('Adding permission request for user:', userData);
         
         // Check if a request already exists for this email
         const existingRequest = await getPermissionRequestByEmail(userData.email);
@@ -36,20 +36,81 @@ const addPermissionRequest = async (userData) => {
             console.log('Permission request already exists for this email');
             return existingRequest;
         }
+
+        // Get company_id from company table based on company name
+        const [companyRows] = await db.pool.query(
+            'SELECT company_id FROM company WHERE c_name = ?',
+            [userData.companyName]
+        );
+
+        if (companyRows.length === 0) {
+            console.error('Company not found:', userData.companyName);
+            throw new Error('Company not found in the system');
+        }
+
+        const companyId = companyRows[0].company_id;
+        console.log('Found company_id:', companyId);
+
+        // Get branch_id from branches table based on office location
+        const [branchRows] = await db.pool.query(
+            'SELECT branch_id FROM branches WHERE b_name = ?',
+            [userData.officeLocation]
+        );
+
+        if (branchRows.length === 0) {
+            console.error('Branch not found:', userData.officeLocation);
+            throw new Error('Branch not found in the system');
+        }
+
+        const branchId = branchRows[0].branch_id;
+        console.log('Found branch_id:', branchId);
+        
+        // Find the "System user" role for this branch
+        const [roleRows] = await db.pool.query(
+            'SELECT role_id FROM roles WHERE role_name = ? AND for_branch = ?',
+            ['System user', branchId]
+        );
+        
+        let roleId = null;
+        if (roleRows.length > 0) {
+            roleId = roleRows[0].role_id;
+            console.log('Found System user role_id:', roleId);
+        } else {
+            console.log('No System user role found for this branch, using NULL for role_id');
+        }
         
         const [result] = await db.pool.query(
-            'INSERT INTO permission_requests (display_name, email, u_status) VALUES (?, ?, ?)',
-            [userData.displayName, userData.email, 'pending']
+            `INSERT INTO permission_requests (
+                email, 
+                display_name, 
+                company_id, 
+                branch_id, 
+                role,
+                u_status
+            ) VALUES (?, ?, ?, ?, ?, ?)`,
+            [
+                userData.email,
+                userData.displayName,
+                companyId,
+                branchId,
+                roleId,
+                'pending'
+            ]
         );
         
         console.log('Permission request added successfully with ID:', result.insertId);
         
-        return {
-            request_id: result.insertId,
-            display_name: userData.displayName,
-            email: userData.email,
-            u_status: 'pending'
-        };
+        // Get the newly created request with all fields
+        const [rows] = await db.pool.query(
+            'SELECT * FROM permission_requests WHERE request_id = ?',
+            [result.insertId]
+        );
+        
+        if (rows.length === 0) {
+            throw new Error('Failed to retrieve newly created permission request');
+        }
+        
+        return rows[0];
     } catch (error) {
         console.error('Error adding permission request:', error);
         throw error;
@@ -57,19 +118,26 @@ const addPermissionRequest = async (userData) => {
 };
 
 /**
- * Get permission request status by email
- * @param {string} email - The email to check
- * @returns {Promise<Object|null>} - The permission request or null if not found
+ * Get permission request by email
+ * @param {string} email - User's email
+ * @returns {Promise<Object|null>} - The permission request if found
  */
 const getPermissionRequestByEmail = async (email) => {
     try {
-        console.log(`Getting permission request for email: ${email}`);
+        console.log('Getting permission request for email:', email);
+        
         const [rows] = await db.pool.query(
             'SELECT * FROM permission_requests WHERE email = ?',
             [email]
         );
-        console.log(`Found ${rows.length} permission requests for email ${email}`);
-        return rows.length > 0 ? rows[0] : null;
+        
+        if (rows.length === 0) {
+            console.log('No permission request found for email:', email);
+            return null;
+        }
+        
+        console.log('Permission request found:', rows[0]);
+        return rows[0];
     } catch (error) {
         console.error('Error getting permission request:', error);
         throw error;
@@ -79,7 +147,7 @@ const getPermissionRequestByEmail = async (email) => {
 /**
  * Update permission request status
  * @param {number} requestId - The ID of the request to update
- * @param {string} status - The new status (approved, rejected)
+ * @param {string} status - The new status (approved, rejected, revoked)
  * @param {number} updatedBy - The ID of the user updating the request
  * @returns {Promise<Object>} - The updated permission request
  */
@@ -87,77 +155,37 @@ const updatePermissionRequestStatus = async (requestId, status, updatedBy) => {
     try {
         console.log(`Updating permission request ${requestId} to status: ${status}`);
         
-        // Get the request details
-        const [requestRows] = await db.pool.query(
+        await db.pool.query(
+            'UPDATE permission_requests SET u_status = ? WHERE request_id = ?',
+            [status, requestId]
+        );
+        
+        const [rows] = await db.pool.query(
             'SELECT * FROM permission_requests WHERE request_id = ?',
             [requestId]
         );
         
-        if (requestRows.length === 0) {
-            console.log(`Permission request ${requestId} not found`);
-            return null;
-        }
-        
-        const request = requestRows[0];
-        
-        // Start a transaction
-        await db.pool.query('START TRANSACTION');
-        
-        try {
-            // Update the permission request status
-            await db.pool.query(
-                'UPDATE permission_requests SET u_status = ?, updated_by = ?, updated_at = CURRENT_TIMESTAMP WHERE request_id = ?',
-                [status, updatedBy, requestId]
-            );
-            
-            // If status is approved, add the user to the users table
-            if (status === 'approved') {
-                console.log(`Adding user ${request.email} to users table`);
-                
-                // Check if user already exists
-                const userExists = await userExists(request.email);
-                
-                if (!userExists) {
-                    // Insert into users table
-                    await db.pool.query(
-                        'INSERT INTO users (display_name, email, u_status) VALUES (?, ?, ?)',
-                        [request.display_name, request.email, 'active']
-                    );
-                    console.log(`User ${request.email} added to users table`);
-                } else {
-                    console.log(`User ${request.email} already exists in users table`);
-                }
-            }
-            
-            // Commit the transaction
-            await db.pool.query('COMMIT');
-            
-            // Get the updated request
-            const [updatedRows] = await db.pool.query(
-                'SELECT * FROM permission_requests WHERE request_id = ?',
-                [requestId]
-            );
-            
-            console.log(`Permission request ${requestId} updated successfully`);
-            return updatedRows[0];
-        } catch (error) {
-            // Rollback the transaction on error
-            await db.pool.query('ROLLBACK');
-            throw error;
-        }
+        console.log('Permission request updated successfully:', rows[0]);
+        return rows[0];
     } catch (error) {
-        console.error('Error updating permission request status:', error);
+        console.error('Error updating permission request:', error);
         throw error;
     }
 };
 
 /**
  * Get all permission requests
- * @returns {Promise<Array>} - List of permission requests
+ * @returns {Promise<Array>} - List of all permission requests
  */
 const getAllPermissionRequests = async () => {
     try {
-        const [rows] = await db.pool.query('SELECT * FROM permission_requests ORDER BY request_id DESC');
+        console.log('Getting all permission requests');
+        
+        const [rows] = await db.pool.query(
+            'SELECT * FROM permission_requests ORDER BY request_id DESC'
+        );
+        
+        console.log(`Found ${rows.length} permission requests`);
         return rows;
     } catch (error) {
         console.error('Error getting all permission requests:', error);

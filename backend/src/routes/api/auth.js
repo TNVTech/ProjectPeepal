@@ -4,8 +4,8 @@ const router = express.Router();
 const AzureADStrategy = require('passport-azure-ad').OIDCStrategy;
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const crypto = require('crypto');
-const permissionController = require('../controllers/permissioncontroller');
-const db = require('../config/db');
+const permissionController = require('../../controllers/permissioncontroller');
+const db = require('../../config/db');
 
 // Passport serialization
 passport.serializeUser((user, done) => {
@@ -95,6 +95,14 @@ if (SSO_PROVIDER === 'azure') {
         proxy: true
     }, (accessToken, refreshToken, profile, done) => {
         console.log('Google Profile:', profile);
+        // Extract email from Google profile
+        const userEmail = profile.emails?.[0]?.value || profile._json?.email;
+        console.log('Extracted email:', userEmail);
+
+        // Extract domain from email
+        const emailDomain = userEmail ? userEmail.split('@')[1] : null;
+        console.log('Extracted domain:', emailDomain);
+
         return done(null, profile);
     });
 
@@ -152,29 +160,50 @@ router.get('/callback', (req, res, next) => {
     })(req, res, next);
 }, async (req, res) => {
     console.log(`${SSO_PROVIDER} Authentication successful`);
-    console.log('User data from SSO:', req.user);
+    console.log('Raw user data from SSO:', JSON.stringify(req.user, null, 2));
     
     try {
         // Format user data based on the SSO provider
         let userData = {};
         
         if (SSO_PROVIDER === 'azure') {
+            console.log(req.user);
             // Azure AD format
             userData = {
                 displayName: req.user.displayName || req.user.name || 'Unknown User',
-                email: req.user._json.email || req.user.emails?.[0] || req.user.preferred_username,
-                // Add any other fields you need
+                email: req.user._json.email || req.user.emails?.[0] || req.user._jsonpreferred_username||req.user._json.userPrincipalName,
+                // Try different possible locations for company and office data
+                companyName: req.user._json.companyName || 
+                           req.user._json.organization || 
+                           req.user._json.department || 
+                           req.user.company || 
+                           'Peepal',
+                officeLocation: req.user.officeLocation || 
+                              req.user._json.department || 
+                              req.user._json.physicalDeliveryOfficeName || 
+                              'Aldershot'
             };
         } else {
             // Google format
             userData = {
                 displayName: req.user.displayName || req.user.name || 'Unknown User',
                 email: req.user.emails?.[0] || req.user._json.email,
-                // Add any other fields you need
+                // For Google, we can use the domain part of the email as company
+                companyName: req.user._json.hd || 
+                           (req.user.emails?.[0]?.split('@')[1]) || 
+                           'Peepal',
+                officeLocation: req.user._json.officeLocation || 
+                              req.user._json.department || 
+                              'Aldershot'
             };
         }
         
-        console.log('Formatted user data for permission check:', userData);
+        console.log('Formatted user data for permission check:', {
+            email: userData.email,
+            displayName: userData.displayName,
+            companyName: userData.companyName,
+            officeLocation: userData.officeLocation
+        });
         
         // Check if user exists in the users table
         const [userRows] = await db.pool.query(
@@ -194,18 +223,10 @@ router.get('/callback', (req, res, next) => {
                 // User exists but access is revoked
                 userStatus = { status: 'revoked' };
                 console.log('User exists but access is revoked');
-                // Store the user status in the session
-                req.session.userStatus = userStatus;
-                // Redirect to dashboard with error message
-                return res.redirect('/dashboard');
             } else {
                 // User exists but has an unknown status
                 userStatus = { status: 'error' };
                 console.log('User exists but has an unknown status:', userStatusInDb);
-                // Store the user status in the session
-                req.session.userStatus = userStatus;
-                // Redirect to dashboard with error message
-                return res.redirect('/dashboard');
             }
         } else {
             // User doesn't exist in the users table, check permission requests
@@ -219,15 +240,88 @@ router.get('/callback', (req, res, next) => {
                 if (request.u_status === 'rejected') {
                     userStatus = { status: 'rejected' };
                     console.log('Request was rejected');
+                } else if (request.u_status === 'revoked') {
+                    userStatus = { status: 'revoked' };
+                    console.log('Request was revoked');
+
+                }else if (request.u_status === 'revoked') {
+                    userStatus = { status: 'approved' };
+                    console.log('Request was approved');
                 } else {
                     userStatus = { status: 'pending' };
                     console.log('Request is pending approval');
                 }
             } else {
                 // No request exists, create a new one
+                console.log('Creating new permission request with data:', {
+                    email: userData.email,
+                    displayName: userData.displayName,
+                    companyName: userData.companyName,
+                    officeLocation: userData.officeLocation
+                });
+                
+                // Look up company and branch information
+                const [companyRows] = await db.pool.query(
+                    'SELECT company_id FROM company WHERE c_name = ?',
+                    [userData.companyName]
+                );
+                
+                if (companyRows.length === 0) {
+                    console.error('Company not found:', userData.companyName);
+                    return res.redirect('/dashboard?error=company_not_found');
+                }
+                
+                const [branchRows] = await db.pool.query(
+                    'SELECT branch_id FROM branches WHERE b_name = ?',
+                    [userData.officeLocation]
+                );
+                
+                if (branchRows.length === 0) {
+                    console.error('Branch not found:', userData.officeLocation);
+                    return res.redirect('/dashboard?error=branch_not_found');
+                }
+                
+                const companyId = companyRows[0].company_id;
+                const branchId = branchRows[0].branch_id;
+                
+                console.log('Found company and branch:', {
+                    companyName: userData.companyName,
+                    companyId: companyId,
+                    officeLocation: userData.officeLocation,
+                    branchId: branchId
+                });
+                
+                // Find the "System user" role for this branch
+                const [roleRows] = await db.pool.query(
+                    'SELECT role_id FROM roles WHERE role_name = ? AND for_branch = ?',
+                    ['System user', branchId]
+                );
+                
+                let roleId = null;
+                if (roleRows.length > 0) {
+                    roleId = roleRows[0].role_id;
+                    console.log('Found System user role_id:', roleId);
+                } else {
+                    console.log('No System user role found for this branch, using NULL for role_id');
+                }
+                
                 await db.pool.query(
-                    'INSERT INTO permission_requests (display_name, email, u_status) VALUES (?, ?, ?)',
-                    [userData.displayName, userData.email, 'pending']
+                    `INSERT INTO permission_requests (
+                        email, 
+                        display_name, 
+                        company_id, 
+                        branch_id, 
+                        role,
+                        u_status
+                    ) VALUES (?, ?, ?, ?, ?, ?)`,
+                    [
+                        userData.email,
+                        userData.displayName,
+                        companyId,
+                        branchId,
+                        roleId,
+                        'pending'
+                    ]
                 );
                 
                 userStatus = { status: 'pending' };
@@ -237,6 +331,13 @@ router.get('/callback', (req, res, next) => {
         
         // Store the user status in the session
         req.session.userStatus = userStatus;
+        req.session.user = {
+            displayName: userData.displayName,
+            email: userData.email,
+            status: userStatus.status,
+            //role: userStatus.role,
+            //permissions: userStatus.permissions
+        };
         
         // Redirect to dashboard
         res.redirect('/dashboard');

@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title><%= typeof title !== 'undefined' ? `${title} - Access Management System` : 'Access Management System' %></title>
+
+    <!-- Google Font: Source Sans Pro -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Source+Sans+Pro:300,400,400i,700&display=fallback">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <!-- Theme style -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/admin-lte@3.2.0/dist/css/adminlte.min.css">
+    <!-- Custom styles -->
+    <link rel="stylesheet" href="/css/style.css">
+    <%- defineContent('styles') %>
+</head>
+<body class="hold-transition sidebar-mini">
+<div class="wrapper">
+    <!-- Navbar -->
+    <%- include('navbar') %>
+
+    <!-- Main Sidebar Container -->
+    <%- include('sidebar') %>
+
+    <!-- Content Wrapper. Contains page content -->
+    <div class="content-wrapper">
+        <!-- Content Header (Page header) -->
+        <div class="content-header">
+            <div class="container-fluid">
+                <div class="row mb-2">
+                    <div class="col-sm-6">
+                        <h1 class="m-0"><%= typeof title !== 'undefined' ? title : 'Dashboard' %></h1>
+                    </div>
+                    <div class="col-sm-6">
+                        <ol class="breadcrumb float-sm-right">
+                            <% if (typeof breadcrumbs !== 'undefined' && breadcrumbs && breadcrumbs.length > 0) { %>
+                                <% breadcrumbs.forEach(function(breadcrumb, index) { %>
+                                    <% if (index === breadcrumbs.length - 1) { %>
+                                        <li class="breadcrumb-item active"><%= breadcrumb.text %></li>
+                                    <% } else { %>
+                                        <li class="breadcrumb-item"><a href="<%= breadcrumb.url %>"><%= breadcrumb.text %></a></li>
+                                    <% } %>
+                                <% }); %>
+                            <% } else { %>
+                                <li class="breadcrumb-item"><a href="/dashboard">Home</a></li>
+                                <li class="breadcrumb-item active"><%= typeof title !== 'undefined' ? title : 'Dashboard' %></li>
+                            <% } %>
+                        </ol>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main content -->
+        <div class="content">
+            <div class="container-fluid">
+                <%- body %>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <%- include('footer') %>
+</div>
+
+<!-- jQuery -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<!-- Bootstrap 4 -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.0/dist/js/bootstrap.bundle.min.js"></script>
+<!-- AdminLTE App -->
+<script src="https://cdn.jsdelivr.net/npm/admin-lte@3.2.0/dist/js/adminlte.min.js"></script>
+<!-- Custom scripts -->
+<script src="/js/script.js"></script>
+<%- defineContent('scripts') %>
+</body>
+</html> 

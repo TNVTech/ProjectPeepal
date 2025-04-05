@@ -6,6 +6,7 @@ const session = require('express-session');
 const passport = require('passport');
 const path = require('path');
 const cookieParser = require('cookie-parser');
+const expressLayouts = require('express-ejs-layouts');
 const { pool, testConnection } = require('./config/db');
 
 // Load environment variables based on environment
@@ -20,6 +21,26 @@ if (process.env.NODE_ENV === 'production') {
 
 // Create Express app
 const app = express();
+
+// Set view engine
+app.set('view engine', 'ejs');
+app.set('views', path.join(__dirname, 'views'));
+
+// Set up express-ejs-layouts
+app.use(expressLayouts);
+app.set('layout', 'partials/layout');
+app.set('layout extractScripts', false);
+app.set('layout extractStyles', false);
+
+// Add middleware to set default variables for all views
+app.use((req, res, next) => {
+    // Set default path based on the current route
+    res.locals.path = req.path;
+    next();
+});
+
+// Serve static files
+app.use(express.static(path.join(__dirname, 'public')));
 
 // Trust Azure's proxy in production
 if (process.env.NODE_ENV === 'production') {
@@ -109,14 +130,16 @@ app.get('/', (req, res) => {
             username: user.preferred_username,
             oid: user.oid,
             sub: user.sub,
-            provider: process.env.SSO_PROVIDER
+            provider: process.env.SSO_PROVIDER,
+            company_name: user.companyname,
+            company_branch: user.officeLocation
         } : null
     });
 });
 
 // Authentication routes
-const authRoutes = require('./routes/auth');
-const permissionRoutes = require('./routes/permissionroutes');
+const authRoutes = require('./routes/api/auth');
+const permissionRoutes = require('./routes/api/permissionroutes');
 app.use('/auth', authRoutes);
 app.use('/api/permission', permissionRoutes);
 
@@ -125,157 +148,235 @@ app.get('/dashboard', async (req, res) => {
     if (!req.isAuthenticated()) {
         return res.redirect('/auth/login');
     }
-    const user = req.user;
-
+    
     try {
-        // Test database connection
-        const isConnected = await testConnection();
-        
-        // Get database details
-        const [dbInfo] = await pool.query('SELECT DATABASE() as db_name, USER() as db_user, VERSION() as db_version');
-        
-        // Format user data for response
-        let userData = {};
-        if (process.env.SSO_PROVIDER === 'azure') {
-            userData = {
-                displayName: user.displayName || user.name || 'Unknown User',
-                email: user._json?.email || user.emails?.[0] || user.preferred_username,
-                username: user.preferred_username,
-                oid: user.oid,
-                sub: user.sub,
-                provider: process.env.SSO_PROVIDER
-            };
-        } else {
-            userData = {
-                displayName: user.displayName || user.name || 'Unknown User',
-                email: user.emails?.[0] || user._json?.email,
-                username: user.username,
-                id: user.id,
-                provider: process.env.SSO_PROVIDER
-            };
-        }
-        
-        // Check if user exists in the users table
+        const user = req.user;
+        const userData = process.env.SSO_PROVIDER === 'azure' ? {
+            displayName: user.displayName || user.name || 'Unknown User',
+            email: user._json?.email || user.emails?.[0] || user.preferred_username,
+            company: user.companyName,
+            officeLocation: user.officeLocation
+        } : {
+            displayName: user.displayName || user.name || 'Unknown User',
+            email: user.emails?.[0].value || user._json?.email,
+            company: user.companyName,
+            officeLocation: user.officeLocation
+        };
+
+        // Check user status
         const [userRows] = await pool.query(
-            'SELECT user_id, u_status FROM users WHERE email = ?',
+            'SELECT user_id, u_status, company_id FROM users WHERE email = ?',
             [userData.email]
         );
         
-        let userStatus = { status: 'unknown' };
-        let message = 'Welcome to the Dashboard';
-        
         if (userRows.length > 0) {
-            const userStatusInDb = userRows[0].u_status;
-            if (userStatusInDb === 'active') {
-                // User exists and is active, grant access
-                userStatus = { status: 'success' };
-                message = 'Welcome to the Dashboard';
-            } else if (userStatusInDb === 'revoked') {
-                // User exists but access is revoked
-                userStatus = { status: 'revoked' };
-                message = 'Your access has been revoked. Please contact the administrator.';
-                // Return error response instead of dashboard data
-                return res.status(403).json({
-                    status: 'error',
-                    message: message,
+            // User exists in the database
+            const userStatus = userRows[0].u_status;
+            const companyId = userRows[0].company_id;
+            
+            // Get company name if company_id exists
+            if (companyId) {
+                const [companyRows] = await pool.query(
+                    'SELECT c_name FROM company WHERE company_id = ?',
+                    [companyId]
+                );
+                
+                if (companyRows.length > 0) {
+                    userData.company_name = companyRows[0].c_name;
+                }
+            }
+            
+            if (userStatus === 'active') {
+                // User is active, get company name
+                const [companyRows] = await pool.query(
+                    'SELECT c_name FROM company WHERE company_id = ?',
+                    [companyId]
+                );
+                
+                userData.company_name = companyRows.length > 0 ? companyRows[0].c_name : 'AdminLTE 3';
+                
+                // Render dashboard with company name
+                return res.render('pages/dashboard', {
                     user: userData,
-                    userStatus: userStatus
+                    title: 'Dashboard',
+                    path: '/dashboard',
+                    stats: {
+                        totalUsers: 150,
+                        activeUsers: 120,
+                        pendingRequests: 5,
+                        revokedAccess: 2
+                    }
+                });
+            } else if (userStatus === 'revoked') {
+                // User access has been revoked
+                return res.render('pages/auth-status', {
+                    status: 'revoked',
+                    user: userData,
+                    supportEmail: process.env.SUPPORT_EMAIL || 'support@example.com',
+                    path: '/auth-status',
+                    layout: 'layouts/auth',
+                    title: 'Access Request Status'
                 });
             } else {
                 // User exists but has an unknown status
-                userStatus = { status: 'error' };
-                message = 'Your account status is unknown. Please contact the administrator.';
-                return res.status(403).json({
-                    status: 'error',
-                    message: message,
+                return res.render('pages/auth-status', {
+                    status: 'unknown',
                     user: userData,
-                    userStatus: userStatus
+                    supportEmail: process.env.SUPPORT_EMAIL || 'support@example.com',
+                    path: '/auth-status',
+                    layout: 'layouts/auth',
+                    title: 'Access Request Status'
                 });
             }
         } else {
-            // User doesn't exist in the users table, check permission requests
+            // User doesn't exist in the database, check permission requests
             const [requestRows] = await pool.query(
                 'SELECT * FROM permission_requests WHERE email = ?',
                 [userData.email]
             );
             
             if (requestRows.length > 0) {
+                // Permission request exists, check its status
                 const request = requestRows[0];
-                if (request.u_status === 'rejected') {
-                    userStatus = { status: 'rejected' };
-                    message = 'Your approval request has been rejected. Please contact the administrator for more information.';
+                
+                // Get company name if company_id exists
+                if (request.company_id) {
+                    const [companyRows] = await pool.query(
+                        'SELECT c_name FROM company WHERE company_id = ?',
+                        [request.company_id]
+                    );
+                    
+                    if (companyRows.length > 0) {
+                        userData.company_name = companyRows[0].c_name;
+                    }
+                }
+                
+                if (request.u_status === 'approved') {
+                    // Request is approved, redirect to dashboard
+                    return res.redirect('/dashboard');
+                } else if (request.u_status === 'rejected') {
+                    // Request was rejected
+                    return res.render('pages/auth-status', {
+                        status: 'rejected',
+                        user: userData,
+                        supportEmail: process.env.SUPPORT_EMAIL || 'support@example.com',
+                        path: '/auth-status',
+                        layout: 'layouts/auth',
+                        title: 'Access Request Status'
+                    });
+                } else if (request.u_status === 'revoked') {
+                    // Request was revoked
+                    return res.render('pages/auth-status', {
+                        status: 'revoked',
+                        user: userData,
+                        supportEmail: process.env.SUPPORT_EMAIL || 'support@example.com',
+                        path: '/auth-status',
+                        layout: 'layouts/auth',
+                        title: 'Access Request Status'
+                    });
                 } else {
-                    userStatus = { status: 'pending' };
-                    message = 'Your login was successful, but your request is pending approval';
+                    // Request is pending
+                    return res.render('pages/auth-status', {
+                        status: 'pending',
+                        user: userData,
+                        supportEmail: process.env.SUPPORT_EMAIL || 'support@example.com',
+                        path: '/auth-status',
+                        layout: 'layouts/auth',
+                        title: 'Access Request Status'
+                    });
                 }
             } else {
                 // No request exists, create a new one
-                await pool.query(
-                    'INSERT INTO permission_requests (display_name, email, u_status) VALUES (?, ?, ?)',
-                    [userData.displayName, userData.email, 'pending']
+                console.log('Creating new permission request for:', userData.email); // Debug log
+                
+                // Look up company and branch information
+                const [companyRows] = await pool.query(
+                    'SELECT company_id FROM company WHERE c_name = ?',
+                    [userData.company]
                 );
                 
-                userStatus = { status: 'pending' };
-                message = 'Your login was successful, but your request is pending approval';
+                if (companyRows.length === 0) {
+                    console.error('Company not found:', userData.company);
+                    return res.redirect('/dashboard?error=company_not_found');
+                }
+                
+                const [branchRows] = await pool.query(
+                    'SELECT branch_id FROM branches WHERE b_name = ?',
+                    [userData.officeLocation]
+                );
+                
+                if (branchRows.length === 0) {
+                    console.error('Branch not found:', userData.officeLocation);
+                    return res.redirect('/dashboard?error=branch_not_found');
+                }
+                
+                const companyId = companyRows[0].company_id;
+                const branchId = branchRows[0].branch_id;
+                
+                // Get company name
+                userData.company_name = userData.company;
+                
+                // Find the "System user" role for this branch
+                const [roleRows] = await pool.query(
+                    'SELECT role_id FROM roles WHERE role_name = ? AND for_branch = ?',
+                    ['System user', branchId]
+                );
+                
+                let roleId = null;
+                if (roleRows.length > 0) {
+                    roleId = roleRows[0].role_id;
+                    console.log('Found System user role_id:', roleId);
+                } else {
+                    console.log('No System user role found for this branch, using NULL for role_id');
+                }
+                
+                await pool.query(
+                    `INSERT INTO permission_requests (
+                        email, 
+                        display_name, 
+                        company_id, 
+                        branch_id, 
+                        role,
+                        u_status
+                    ) VALUES (?, ?, ?, ?, ?, ?)`,
+                    [
+                        userData.email,
+                        userData.displayName,
+                        companyId,
+                        branchId,
+                        roleId,
+                        'pending'
+                    ]
+                );
+                
+                return res.render('pages/auth-status', {
+                    status: 'pending',
+                    user: userData,
+                    supportEmail: process.env.SUPPORT_EMAIL || 'support@example.com',
+                    path: '/auth-status',
+                    layout: 'layouts/auth',
+                    title: 'Access Request Status'
+                });
             }
         }
-        
-        // Store user status in session
-        req.session.userStatus = userStatus;
-        
-        res.json({
-            message: message,
+
+        // If we get here, user is active and can access dashboard
+        return res.render('pages/dashboard', {
             user: userData,
-            userStatus: userStatus,
-            database: {
-                isConnected,
-                details: dbInfo[0],
-                host: process.env.DB_HOST || 'localhost',
-                database: process.env.DB_NAME || 'manage_system_db'
+            title: 'Dashboard',
+            path: '/dashboard',
+            stats: {
+                totalUsers: 150,
+                activeUsers: 120,
+                pendingRequests: 5,
+                revokedAccess: 2
             }
         });
     } catch (error) {
-        console.error('Database error:', error);
-        
-        // Format user data for error response
-        let userData = {};
-        if (process.env.SSO_PROVIDER === 'azure') {
-            userData = {
-                displayName: user.displayName || user.name || 'Unknown User',
-                email: user._json?.email || user.emails?.[0] || user.preferred_username,
-                username: user.preferred_username,
-                oid: user.oid,
-                sub: user.sub,
-                provider: process.env.SSO_PROVIDER
-            };
-        } else {
-            userData = {
-                displayName: user.displayName || user.name || 'Unknown User',
-                email: user.emails?.[0] || user._json?.email,
-                username: user.username,
-                id: user.id,
-                provider: process.env.SSO_PROVIDER
-            };
-        }
-        
-        // Determine message based on user status even in case of error
-        let message = 'Welcome to the Dashboard';
-        if (req.session.userStatus && req.session.userStatus.status === 'pending') {
-            message = 'Your login was successful, but your request is pending approval';
-        } else if (req.session.userStatus && req.session.userStatus.status === 'rejected') {
-            message = 'Your approval request has been rejected. Please contact the administrator for more information.';
-        } else if (req.session.userStatus && req.session.userStatus.status === 'revoked') {
-            message = 'Your access has been revoked. Please contact the administrator.';
-        }
-        
-        res.status(500).json({
-            message: message,
-            user: userData,
-            userStatus: req.session.userStatus || { status: 'unknown' },
-            database: {
-                isConnected: false,
-                error: error.message
-            }
+        console.error('Error:', error);
+        res.status(500).render('pages/error', {
+            error: process.env.NODE_ENV === 'development' ? error : 'Internal Server Error',
+            title: 'Error'
         });
     }
 });

@@ -100,10 +100,12 @@ CREATE TABLE IF NOT EXISTS branches (
     billing_address INT,
     column_1 VARCHAR(100),
     column_2 VARCHAR(100),
+    company_id INT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (address_id) REFERENCES addresses(address_id) ON DELETE CASCADE,
-    FOREIGN KEY (billing_address) REFERENCES addresses(address_id) ON DELETE SET NULL
+    FOREIGN KEY (billing_address) REFERENCES addresses(address_id) ON DELETE SET NULL,
+    FOREIGN KEY (company_id) REFERENCES company(company_id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Add indexes for better performance
@@ -159,12 +161,16 @@ CREATE TABLE IF NOT EXISTS users (
     column_2 VARCHAR(100),
     column_3 VARCHAR(100),
     assigned_by INT,
+    revoked_by INT,
+    assigned_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    revoked_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (role) REFERENCES roles(role_id) ON DELETE SET NULL,
     FOREIGN KEY (branch_id) REFERENCES branches(branch_id) ON DELETE SET NULL,
     FOREIGN KEY (company_id) REFERENCES company(company_id) ON DELETE SET NULL,
-    FOREIGN KEY (assigned_by) REFERENCES users(user_id) ON DELETE SET NULL
+    FOREIGN KEY (assigned_by) REFERENCES users(user_id) ON DELETE SET NULL,
+    FOREIGN KEY (revoked_by) REFERENCES users(user_id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Add indexes for users table
@@ -246,11 +252,14 @@ CREATE TABLE IF NOT EXISTS permission_requests (
     assigned_by INT,
     approved_by INT,
     approved_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    rejected_by INT,
+    rejected_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (role) REFERENCES roles(role_id) ON DELETE SET NULL,
     FOREIGN KEY (branch_id) REFERENCES branches(branch_id) ON DELETE SET NULL,
     FOREIGN KEY (company_id) REFERENCES company(company_id) ON DELETE SET NULL,
     FOREIGN KEY (assigned_by) REFERENCES users(user_id) ON DELETE SET NULL,
-    FOREIGN KEY (approved_by) REFERENCES users(user_id) ON DELETE SET NULL
+    FOREIGN KEY (approved_by) REFERENCES users(user_id) ON DELETE SET NULL,
+    FOREIGN KEY (rejected_by) REFERENCES users(user_id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Add indexes for permission_requests table
