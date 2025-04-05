@@ -37,4 +37,4 @@ EXPOSE 8080
    # CMD curl -f http://projectpeepal-dev.azurewebsites.net:8080/ || exit 1
 
 # Start the application with environment variables for database connection
-CMD ["./wait-for-it.sh", "${DB_HOST}:${DB_PORT}", "-t", "60", "--", "node", "start"]
+CMD ["./wait-for-it.sh", "${DB_HOST}:${DB_PORT}", "-t", "60", "--", "npm", "start"]
