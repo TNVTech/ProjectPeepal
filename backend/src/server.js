@@ -8,6 +8,8 @@ const path = require('path');
 const cookieParser = require('cookie-parser');
 const expressLayouts = require('express-ejs-layouts');
 const { pool, testConnection } = require('./config/db');
+const { storeActiveUser } = require('./middleware/userSession');
+const csurf = require('csurf');
 
 // Load environment variables based on environment
 if (process.env.NODE_ENV === 'production') {
@@ -31,21 +33,6 @@ app.use(expressLayouts);
 app.set('layout', 'partials/layout');
 app.set('layout extractScripts', false);
 app.set('layout extractStyles', false);
-
-// Add middleware to set default variables for all views
-app.use((req, res, next) => {
-    // Set default path based on the current route
-    res.locals.path = req.path;
-    next();
-});
-
-// Serve static files
-app.use(express.static(path.join(__dirname, 'public')));
-
-// Trust Azure's proxy in production
-if (process.env.NODE_ENV === 'production') {
-    app.set('trust proxy', 1);
-}
 
 // Test database connection
 testConnection().then(isConnected => {
@@ -97,23 +84,80 @@ app.use(session(sessionConfig));
 app.use(passport.initialize());
 app.use(passport.session());
 
-// Debug middleware (only in development)
-if (process.env.NODE_ENV !== 'production') {
-    app.use((req, res, next) => {
-        console.log('Request:', {
-            path: req.path,
-            method: req.method,
-            session: req.session,
+// Apply userSession middleware after passport initialization
+app.use(storeActiveUser);
+
+// Set up CSRF protection
+app.use(csurf());
+
+// Add middleware to set default variables for all views
+app.use(async (req, res, next) => {
+    // Set default path based on the current route
+    res.locals.path = req.path;
+    
+    // Make session data available to all views
+    res.locals.session = req.session || {};
+    
+    // Make activeUser directly available for convenience
+    res.locals.activeUser = req.session && req.session.activeUser ? req.session.activeUser : null;
+    
+    // Add CSRF token to all views
+    res.locals.csrfToken = req.csrfToken();
+    
+    // Initialize stats with default values
+    res.locals.stats = {
+        pendingRequests: 0,
+        totalUsers: 0
+    };
+    
+    // Initialize userPrivileges
+    res.locals.userPrivileges = [];
+    
+    // If user is authenticated, fetch their privileges
+    if (req.isAuthenticated() && req.session.activeUser) {
+        try {
+            // Check if user is a System Administrator
+            if (req.session.activeUser.role === 'System Administrator') {
+                // System Administrators have all privileges
+                res.locals.userPrivileges = ['list_requests', 'manage_users', 'manage_roles', 'manage_permissions'];
+            } else {
+                // Fetch privileges for other roles
+                const [privilegeRows] = await pool.query(
+                    `SELECT p.p_name
+                     FROM role_privileges rp
+                     JOIN privilege p ON rp.privilege_id = p.privilege_id
+                     JOIN roles r ON rp.role_id = r.role_id
+                     WHERE r.role_name = ?`,
+                    [req.session.activeUser.role]
+                );
+                
+                // Extract privilege names
+                res.locals.userPrivileges = privilegeRows.map(row => row.p_name);
+            }
+        } catch (error) {
+            console.error('Error fetching user privileges:', error);
+        }
+    }
+    
+    // Debug log in development
+    if (process.env.NODE_ENV !== 'production') {
+        console.log('Session data:', {
             sessionID: req.sessionID,
+            activeUser: req.session && req.session.activeUser ? req.session.activeUser : null,
             isAuthenticated: req.isAuthenticated(),
-            user: req.user,
-            headers: req.headers,
-            cookies: req.cookies,
-            signedCookies: req.signedCookies,
-            query: req.query
+            userPrivileges: res.locals.userPrivileges
         });
-        next();
-    });
+    }
+    
+    next();
+});
+
+// Serve static files
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Trust Azure's proxy in production
+if (process.env.NODE_ENV === 'production') {
+    app.set('trust proxy', 1);
 }
 
 // Routes
@@ -140,8 +184,80 @@ app.get('/', (req, res) => {
 // Authentication routes
 const authRoutes = require('./routes/api/auth');
 const permissionRoutes = require('./routes/api/permissionroutes');
+const pendingRequestRoutes = require('./routes/api/pendingRequestRoutes');
 app.use('/auth', authRoutes);
 app.use('/api/permission', permissionRoutes);
+app.use('/api/pending-requests', pendingRequestRoutes);
+
+// Web routes
+const approvalRoutes = require('./routes/web/approvalRoutes');
+app.use('/approvals', approvalRoutes);
+
+// Add middleware to update sidebar stats
+app.use(async (req, res, next) => {
+    // Only update stats if user is authenticated
+    if (req.isAuthenticated() && req.session.activeUser) {
+        try {
+            const activeUser = req.session.activeUser;
+            
+            // Check if user is a System Administrator or has list_requests privilege
+            if (activeUser.role === 'System Administrator' || 
+                (res.locals.userPrivileges && res.locals.userPrivileges.includes('list_requests'))) {
+                
+                // Get count of pending requests
+                let countQuery = '';
+                let countParams = [];
+
+                if (activeUser.role === 'System Administrator') {
+                    countQuery = `
+                        SELECT COUNT(*) as count
+                        FROM permission_requests
+                        WHERE company_id = ? AND u_status = 'pending'
+                    `;
+                    countParams = [activeUser.company_id];
+                } else {
+                    countQuery = `
+                        SELECT COUNT(*) as count
+                        FROM permission_requests
+                        WHERE company_id = ? AND branch_id = ? AND u_status = 'pending'
+                    `;
+                    countParams = [activeUser.company_id, activeUser.branch_id];
+                }
+
+                const [countResult] = await pool.query(countQuery, countParams);
+                res.locals.stats.pendingRequests = countResult[0].count;
+            }
+            
+            // Get count of total users
+            let userCountQuery = '';
+            let userCountParams = [];
+
+            if (activeUser.role === 'System Administrator') {
+                userCountQuery = `
+                    SELECT COUNT(*) as count
+                    FROM users
+                    WHERE company_id = ?
+                `;
+                userCountParams = [activeUser.company_id];
+            } else {
+                userCountQuery = `
+                    SELECT COUNT(*) as count
+                    FROM users
+                    WHERE company_id = ? AND branch_id = ?
+                `;
+                userCountParams = [activeUser.company_id, activeUser.branch_id];
+            }
+
+            const [userCountResult] = await pool.query(userCountQuery, userCountParams);
+            res.locals.stats.totalUsers = userCountResult[0].count;
+            
+        } catch (error) {
+            console.error('Error updating sidebar stats:', error);
+        }
+    }
+    
+    next();
+});
 
 // Protected route example
 app.get('/dashboard', async (req, res) => {
@@ -151,231 +267,102 @@ app.get('/dashboard', async (req, res) => {
     
     try {
         const user = req.user;
-        const userData = process.env.SSO_PROVIDER === 'azure' ? {
-            displayName: user.displayName || user.name || 'Unknown User',
-            email: user._json?.email || user.emails?.[0] || user.preferred_username,
-            company: user.companyName,
-            officeLocation: user.officeLocation
-        } : {
-            displayName: user.displayName || user.name || 'Unknown User',
-            email: user.emails?.[0].value || user._json?.email,
-            company: user.companyName,
-            officeLocation: user.officeLocation
-        };
-
-        // Check user status
-        const [userRows] = await pool.query(
-            'SELECT user_id, u_status, company_id FROM users WHERE email = ?',
-            [userData.email]
-        );
+        const userEmail = user._json?.email || user.emails?.[0]?.value || user.preferred_username;
         
+        // Get user data from the database
+        const [userRows] = await pool.query(
+            `SELECT u.*, c.c_name as company_name, r.role_name, b.b_name as branch_name
+             FROM users u 
+             LEFT JOIN company c ON u.company_id = c.company_id 
+             LEFT JOIN roles r ON u.role = r.role_id 
+             LEFT JOIN branches b ON u.branch_id = b.branch_id
+             WHERE u.email = ?`,
+            [userEmail]
+        );
+
         if (userRows.length > 0) {
-            // User exists in the database
-            const userStatus = userRows[0].u_status;
-            const companyId = userRows[0].company_id;
+            const userData = userRows[0];
             
-            // Get company name if company_id exists
-            if (companyId) {
-                const [companyRows] = await pool.query(
-                    'SELECT c_name FROM company WHERE company_id = ?',
-                    [companyId]
-                );
-                
-                if (companyRows.length > 0) {
-                    userData.company_name = companyRows[0].c_name;
+            // Store user data in session
+            req.session.activeUser = {
+                user_id: userData.user_id,
+                email: userData.email,
+                displayName: userData.display_name,
+                company_name: userData.company_name,
+                branch_name: userData.branch_name,
+                role: userData.role_name,
+                status: userData.u_status,
+                lastLogin: new Date().toISOString()
+            };
+
+            // Update last login timestamp
+            // await pool.query(
+            //     'UPDATE users SET last_login = NOW() WHERE user_id = ?',
+            //     [userData.user_id]
+            // );
+
+            // Render dashboard with user data
+            return res.render('pages/dashboard', {
+                title: 'Dashboard',
+                path: '/dashboard',
+                stats: {
+                    totalUsers: 150,
+                    activeUsers: 120,
+                    pendingRequests: 5,
+                    revokedAccess: 2
                 }
-            }
-            
-            if (userStatus === 'active') {
-                // User is active, get company name
-                const [companyRows] = await pool.query(
-                    'SELECT c_name FROM company WHERE company_id = ?',
-                    [companyId]
-                );
-                
-                userData.company_name = companyRows.length > 0 ? companyRows[0].c_name : 'AdminLTE 3';
-                
-                // Render dashboard with company name
-                return res.render('pages/dashboard', {
-                    user: userData,
-                    title: 'Dashboard',
-                    path: '/dashboard',
-                    stats: {
-                        totalUsers: 150,
-                        activeUsers: 120,
-                        pendingRequests: 5,
-                        revokedAccess: 2
-                    }
-                });
-            } else if (userStatus === 'revoked') {
-                // User access has been revoked
-                return res.render('pages/auth-status', {
-                    status: 'revoked',
-                    user: userData,
-                    supportEmail: process.env.SUPPORT_EMAIL || 'support@example.com',
-                    path: '/auth-status',
-                    layout: 'layouts/auth',
-                    title: 'Access Request Status'
-                });
-            } else {
-                // User exists but has an unknown status
-                return res.render('pages/auth-status', {
-                    status: 'unknown',
-                    user: userData,
-                    supportEmail: process.env.SUPPORT_EMAIL || 'support@example.com',
-                    path: '/auth-status',
-                    layout: 'layouts/auth',
-                    title: 'Access Request Status'
-                });
-            }
+            });
         } else {
             // User doesn't exist in the database, check permission requests
             const [requestRows] = await pool.query(
                 'SELECT * FROM permission_requests WHERE email = ?',
-                [userData.email]
+                [userEmail]
             );
             
             if (requestRows.length > 0) {
                 // Permission request exists, check its status
                 const request = requestRows[0];
                 
-                // Get company name if company_id exists
-                if (request.company_id) {
-                    const [companyRows] = await pool.query(
-                        'SELECT c_name FROM company WHERE company_id = ?',
-                        [request.company_id]
-                    );
-                    
-                    if (companyRows.length > 0) {
-                        userData.company_name = companyRows[0].c_name;
-                    }
-                }
-                
-                if (request.u_status === 'approved') {
-                    // Request is approved, redirect to dashboard
-                    return res.redirect('/dashboard');
-                } else if (request.u_status === 'rejected') {
-                    // Request was rejected
-                    return res.render('pages/auth-status', {
-                        status: 'rejected',
-                        user: userData,
-                        supportEmail: process.env.SUPPORT_EMAIL || 'support@example.com',
-                        path: '/auth-status',
-                        layout: 'layouts/auth',
-                        title: 'Access Request Status'
-                    });
-                } else if (request.u_status === 'revoked') {
-                    // Request was revoked
-                    return res.render('pages/auth-status', {
-                        status: 'revoked',
-                        user: userData,
-                        supportEmail: process.env.SUPPORT_EMAIL || 'support@example.com',
-                        path: '/auth-status',
-                        layout: 'layouts/auth',
-                        title: 'Access Request Status'
-                    });
-                } else {
-                    // Request is pending
-                    return res.render('pages/auth-status', {
-                        status: 'pending',
-                        user: userData,
-                        supportEmail: process.env.SUPPORT_EMAIL || 'support@example.com',
-                        path: '/auth-status',
-                        layout: 'layouts/auth',
-                        title: 'Access Request Status'
-                    });
-                }
-            } else {
-                // No request exists, create a new one
-                console.log('Creating new permission request for:', userData.email); // Debug log
-                
-                // Look up company and branch information
-                const [companyRows] = await pool.query(
-                    'SELECT company_id FROM company WHERE c_name = ?',
-                    [userData.company]
-                );
-                
-                if (companyRows.length === 0) {
-                    console.error('Company not found:', userData.company);
-                    return res.redirect('/dashboard?error=company_not_found');
-                }
-                
-                const [branchRows] = await pool.query(
-                    'SELECT branch_id FROM branches WHERE b_name = ?',
-                    [userData.officeLocation]
-                );
-                
-                if (branchRows.length === 0) {
-                    console.error('Branch not found:', userData.officeLocation);
-                    return res.redirect('/dashboard?error=branch_not_found');
-                }
-                
-                const companyId = companyRows[0].company_id;
-                const branchId = branchRows[0].branch_id;
-                
-                // Get company name
-                userData.company_name = userData.company;
-                
-                // Find the "System user" role for this branch
-                const [roleRows] = await pool.query(
-                    'SELECT role_id FROM roles WHERE role_name = ? AND for_branch = ?',
-                    ['System user', branchId]
-                );
-                
-                let roleId = null;
-                if (roleRows.length > 0) {
-                    roleId = roleRows[0].role_id;
-                    console.log('Found System user role_id:', roleId);
-                } else {
-                    console.log('No System user role found for this branch, using NULL for role_id');
-                }
-                
-                await pool.query(
-                    `INSERT INTO permission_requests (
-                        email, 
-                        display_name, 
-                        company_id, 
-                        branch_id, 
-                        role,
-                        u_status
-                    ) VALUES (?, ?, ?, ?, ?, ?)`,
-                    [
-                        userData.email,
-                        userData.displayName,
-                        companyId,
-                        branchId,
-                        roleId,
-                        'pending'
-                    ]
-                );
-                
+                // Store request data in session
+                req.session.activeUser = {
+                    request_id: request.request_id,
+                    email: request.email,
+                    displayName: request.display_name,
+                    company_name: request.company_name,
+                    branch_name: request.branch_name,
+                    role: request.role_name,
+                    status: request.u_status,
+                    company_id: request.company_id,
+                    branch_id: request.branch_id,
+                    role_id: request.role
+                };
+
                 return res.render('pages/auth-status', {
-                    status: 'pending',
-                    user: userData,
+                    status: request.u_status,
                     supportEmail: process.env.SUPPORT_EMAIL || 'support@example.com',
                     path: '/auth-status',
                     layout: 'layouts/auth',
-                    title: 'Access Request Status'
+                    title: 'Access Request Status',
+                    activeUser: req.session.activeUser
                 });
             }
         }
 
-        // If we get here, user is active and can access dashboard
-        return res.render('pages/dashboard', {
-            user: userData,
-            title: 'Dashboard',
-            path: '/dashboard',
-            stats: {
-                totalUsers: 150,
-                activeUsers: 120,
-                pendingRequests: 5,
-                revokedAccess: 2
-            }
+        // If we get here, neither user nor request was found
+        return res.render('pages/auth-status', {
+            status: 'not_found',
+            supportEmail: process.env.SUPPORT_EMAIL || 'support@example.com',
+            path: '/auth-status',
+            layout: 'layouts/auth',
+            title: 'Access Request Status',
+            activeUser: req.session.activeUser
         });
     } catch (error) {
-        console.error('Error:', error);
-        res.status(500).render('pages/error', {
-            error: process.env.NODE_ENV === 'development' ? error : 'Internal Server Error',
+        console.error('Error in dashboard route:', error);
+        return res.render('pages/error', {
+            error: 'An error occurred while loading the dashboard',
+            path: '/error',
+            layout: 'layouts/auth',
             title: 'Error'
         });
     }

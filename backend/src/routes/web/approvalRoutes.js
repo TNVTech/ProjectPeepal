@@ -1,72 +1,41 @@
 const express = require('express');
 const router = express.Router();
-const permissionController = require('../../controllers/permissioncontroller');
 const db = require('../../config/db');
-
-// Get the pool from the db module
 const pool = db.pool;
+const axios = require('axios');
 
 /**
- * @route POST /api/permission/check
- * @desc Check if a user exists and handle permission request if needed
- * @access Public
- */
-router.post('/check', async (req, res) => {
-    try {
-        const userData = req.body;
-        
-        if (!userData || !userData.email) {
-            return res.status(400).json({ 
-                status: 'error', 
-                message: 'User data is required' 
-            });
-        }
-        
-        const result = await permissionController.checkUserAndHandlePermission(userData);
-        res.json(result);
-    } catch (error) {
-        console.error('Error in permission check route:', error);
-        res.status(500).json({ 
-            status: 'error', 
-            message: 'Server error while checking user permission' 
-        });
-    }
-});
-
-/**
- * @route GET /api/permission/requests
- * @desc Get all permission requests
+ * @route GET /approvals
+ * @desc Render the approvals page
  * @access Private (Admin only)
  */
-router.get('/requests', async (req, res) => {
+router.get('/', async (req, res) => {
     try {
         // Check if user is authenticated
         if (!req.isAuthenticated()) {
-            return res.status(401).json({
-                status: 'error',
-                message: 'You must be logged in to perform this action'
-            });
+            return res.redirect('/login');
         }
 
         // Check if user has activeUser in session
         if (!req.session.activeUser) {
-            return res.status(401).json({
-                status: 'error',
-                message: 'User session not found'
-            });
+            return res.redirect('/login');
         }
 
         // Check if user is a System Administrator or has list_requests privilege
         const activeUser = req.session.activeUser;
         if (activeUser.role !== 'System Administrator' && 
             (!res.locals.userPrivileges || !res.locals.userPrivileges.includes('list_requests'))) {
-            return res.status(403).json({
-                status: 'error',
-                message: 'You do not have permission to view pending requests'
+            return res.status(403).render('error', {
+                message: 'You do not have permission to view the approvals page',
+                error: {
+                    status: 403,
+                    stack: ''
+                }
             });
         }
 
-        let requests = [];
+        let pendingRequests = [];
+        let pendingCount = 0;
 
         // Check if user is a system administrator
         if (activeUser.role === 'System Administrator') {
@@ -81,7 +50,8 @@ router.get('/requests', async (req, res) => {
                  ORDER BY pr.request_id DESC`,
                 [activeUser.company_id]
             );
-            requests = rows;
+            pendingRequests = rows;
+            pendingCount = rows.length;
         } else {
             // User has list_requests privilege, get pending requests for their branch
             const [rows] = await pool.query(
@@ -94,89 +64,62 @@ router.get('/requests', async (req, res) => {
                  ORDER BY pr.request_id DESC`,
                 [activeUser.company_id, activeUser.branch_id]
             );
-            requests = rows;
+            pendingRequests = rows;
+            pendingCount = rows.length;
         }
 
-        res.json({
-            status: 'success',
-            data: requests
+        res.render('pages/approvals', {
+            title: 'Pending Approvals',
+            path: '/approvals',
+            pendingRequests,
+            pendingCount,
+            activeUser
         });
     } catch (error) {
-        console.error('Error getting permission requests:', error);
-        res.status(500).json({
-            status: 'error',
-            message: 'An error occurred while getting permission requests',
-            error: error.message
+        console.error('Error rendering approvals page:', error);
+        res.status(500).render('error', {
+            message: 'An error occurred while loading the approvals page',
+            error: {
+                status: 500,
+                stack: error.stack
+            }
         });
     }
 });
 
 /**
- * @route PUT /api/permission/requests/:requestId
- * @desc Update permission request status
+ * @route POST /approvals/confirm
+ * @desc Confirm approval or rejection of a permission request
  * @access Private (Admin only)
  */
-router.put('/requests/:requestId', async (req, res) => {
+router.post('/confirm', async (req, res) => {
     try {
-        console.log('PUT /api/permission/requests/:requestId - Request received');
-        console.log('Request ID:', req.params.requestId);
-        console.log('Request body:', req.body);
-        console.log('Content-Type:', req.get('Content-Type'));
-        
         // Check if user is authenticated
         if (!req.isAuthenticated()) {
-            console.log('User not authenticated');
-            return res.status(401).json({
-                status: 'error',
-                message: 'You must be logged in to perform this action'
-            });
+            return res.redirect('/login');
         }
 
         // Check if user has activeUser in session
         if (!req.session.activeUser) {
-            console.log('No activeUser in session');
-            return res.status(401).json({
-                status: 'error',
-                message: 'User session not found'
-            });
+            return res.redirect('/login');
         }
 
-        // Check if user is a System Administrator or has list_requests privilege
-        const activeUser = req.session.activeUser;
-        console.log('Active user:', activeUser);
-        console.log('User privileges:', res.locals.userPrivileges);
+        // Check if user has permission to update requests
+        const hasPermission = req.session.activeUser.privileges && 
+            (req.session.activeUser.privileges.includes('update_requests') || 
+             req.session.activeUser.role === 'system administrator');
         
-        if (activeUser.role !== 'System Administrator' && 
-            (!res.locals.userPrivileges || !res.locals.userPrivileges.includes('list_requests'))) {
-            console.log('User does not have permission');
-            return res.status(403).json({
-                status: 'error',
-                message: 'You do not have permission to update permission requests'
-            });
+   
+
+        const { requestId, action } = req.body;
+        
+        if (!requestId || !action || !['approve', 'reject'].includes(action)) {
+            req.flash('error', 'Invalid request parameters');
+            return res.redirect('/approvals');
         }
 
-        const { requestId } = req.params;
-        const { status, updatedBy } = req.body;
-        
-        console.log('Processing request with ID:', requestId);
-        console.log('Status:', status);
-        console.log('Updated by:', updatedBy);
-        
-        if (!status || !['approved', 'rejected'].includes(status)) {
-            console.log('Invalid status:', status);
-            return res.status(400).json({
-                status: 'error',
-                message: 'Invalid status. Must be either "approved" or "rejected"'
-            });
-        }
-        
-        if (!updatedBy) {
-            console.log('Missing updatedBy');
-            return res.status(400).json({
-                status: 'error',
-                message: 'updatedBy is required'
-            });
-        }
+        const status = action === 'approve' ? 'approved' : 'rejected';
+        const userId = req.session.activeUser.user_id;
 
         // Get the permission request details
         console.log('Fetching permission request details');
@@ -189,10 +132,8 @@ router.put('/requests/:requestId', async (req, res) => {
 
         if (requestRows.length === 0) {
             console.log('Permission request not found');
-            return res.status(404).json({
-                status: 'error',
-                message: 'Permission request not found'
-            });
+            req.flash('error', 'Permission request not found');
+            return res.redirect('/approvals');
         }
 
         const request = requestRows[0];
@@ -207,7 +148,7 @@ router.put('/requests/:requestId', async (req, res) => {
             console.log('Updating permission request status to:', status);
             const updateResult = await pool.query(
                 `UPDATE permission_requests SET u_status = ?, approved_by = ?, approved_time = NOW() WHERE request_id = ?`,
-                [status, updatedBy, requestId]
+                [status, userId, requestId]
             );
             console.log('Update result:', updateResult);
 
@@ -233,7 +174,7 @@ router.put('/requests/:requestId', async (req, res) => {
                             request.role,
                             request.branch_id,
                             request.company_id,
-                            updatedBy
+                            userId
                         ]
                     );
                     console.log('Insert result:', insertResult);
@@ -255,7 +196,7 @@ router.put('/requests/:requestId', async (req, res) => {
                             request.role,
                             request.branch_id,
                             request.company_id,
-                            updatedBy,
+                            userId,
                             request.email
                         ]
                     );
@@ -268,10 +209,8 @@ router.put('/requests/:requestId', async (req, res) => {
             await pool.query('COMMIT');
             console.log('Transaction committed successfully');
 
-            res.json({
-                status: 'success',
-                message: `Permission request has been ${status} successfully`
-            });
+            req.flash('success', `Permission request has been ${status} successfully`);
+            res.redirect('/approvals');
         } catch (error) {
             // Rollback the transaction in case of error
             console.error('Error in transaction, rolling back:', error);
@@ -279,13 +218,10 @@ router.put('/requests/:requestId', async (req, res) => {
             throw error;
         }
     } catch (error) {
-        console.error('Error updating permission request:', error);
-        res.status(500).json({
-            status: 'error',
-            message: 'An error occurred while updating the permission request',
-            error: error.message
-        });
+        console.error('Error confirming permission request:', error);
+        //req.flash('error', 'An error occurred while processing your request');
+        res.redirect('/approvals');
     }
 });
 
-module.exports = router;
+module.exports = router; 

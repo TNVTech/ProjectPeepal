@@ -16,7 +16,7 @@
                     Your access request is currently being reviewed by our administrators. This process typically takes 1-2 business days.
                 </div>
                 <div class="ms-alert ms-alert-warning">
-                    <p>We will notify you via email at <strong><%= user.email %></strong> once your request has been processed.</p>
+                    <p>We will notify you via email at <strong><%= activeUser && activeUser.email ? activeUser.email : 'your email' %></strong> once your request has been processed.</p>
                     <p>If you have any questions, please contact our support team at <a href="mailto:<%= supportEmail %>"><%= supportEmail %></a>.</p>
                 </div>
             <% } else if (status === 'rejected') { %>
@@ -63,11 +63,11 @@
                 <div class="auth-details-title">Request Details</div>
                 <div class="auth-details-item">
                     <div class="auth-details-label">Email:</div>
-                    <div class="auth-details-value"><%= user.email %></div>
+                    <div class="auth-details-value"><%= activeUser && activeUser.email ? activeUser.email : 'Not available' %></div>
                 </div>
                 <div class="auth-details-item">
                     <div class="auth-details-label">Name:</div>
-                    <div class="auth-details-value"><%= user.displayName || 'Not provided' %></div>
+                    <div class="auth-details-value"><%= activeUser && activeUser.displayName ? activeUser.displayName : 'Not provided' %></div>
                 </div>
                 <div class="auth-details-item">
                     <div class="auth-details-label">Status:</div>

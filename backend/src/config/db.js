@@ -86,6 +86,21 @@ pool.on('error', (err) => {
     }
 });
 
+// Wrap the query method to add debugging
+const originalQuery = promisePool.query;
+promisePool.query = async function(...args) {
+    console.log('Executing SQL query:', args[0]);
+    console.log('Query parameters:', args.slice(1));
+    try {
+        const result = await originalQuery.apply(this, args);
+        console.log('Query executed successfully');
+        return result;
+    } catch (error) {
+        console.error('Error executing query:', error);
+        throw error;
+    }
+};
+
 module.exports = {
     pool: promisePool,
     testConnection

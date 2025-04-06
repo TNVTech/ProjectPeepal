@@ -9,7 +9,7 @@
             <a href="/dashboard" class="nav-link">Home</a>
         </li>
         <li class="nav-item d-none d-sm-inline-block">
-            <span class="nav-link text-muted"><%= typeof user !== 'undefined' && user.company_name ? user.company_name : '' %></span>
+            <span class="nav-link text-muted"><%= activeUser && activeUser.company_name ? activeUser.company_name : '' %></span>
         </li>
     </ul>
 
@@ -110,11 +110,7 @@
             </a>
             <div class="dropdown-menu dropdown-menu-right">
                 <a href="#" class="dropdown-item">
-                    <i class="fas fa-user mr-2"></i> Profile
-                </a>
-                <div class="dropdown-divider"></div>
-                <a href="#" class="dropdown-item">
-                    <i class="fas fa-cog mr-2"></i> Settings
+                    <i class="fas fa-user mr-2"></i> <%= activeUser && activeUser.displayName ? activeUser.displayName : 'User' %>
                 </a>
                 <div class="dropdown-divider"></div>
                 <a href="/auth/logout" class="dropdown-item">

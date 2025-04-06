@@ -182,7 +182,12 @@ const getAllPermissionRequests = async () => {
         console.log('Getting all permission requests');
         
         const [rows] = await db.pool.query(
-            'SELECT * FROM permission_requests ORDER BY request_id DESC'
+            `SELECT pr.*, c.c_name as company_name, b.b_name as branch_name, r.role_name
+             FROM permission_requests pr
+             LEFT JOIN company c ON pr.company_id = c.company_id
+             LEFT JOIN branches b ON pr.branch_id = b.branch_id
+             LEFT JOIN roles r ON pr.role = r.role_id
+             ORDER BY pr.request_id DESC`
         );
         
         console.log(`Found ${rows.length} permission requests`);
