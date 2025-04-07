@@ -6,7 +6,7 @@ name: Build and deploy Node.js app to Azure Web App - projectpeepal-dev
 on:
   push:
     branches:
-      - dev
+      - test
   workflow_dispatch:
 
 jobs:
