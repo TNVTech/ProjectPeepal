@@ -10,6 +10,7 @@ const expressLayouts = require('express-ejs-layouts');
 const { pool, testConnection } = require('./config/db');
 const { storeActiveUser } = require('./middleware/userSession');
 const csurf = require('csurf');
+const flash = require('connect-flash');
 
 // Load environment variables based on environment
 if (process.env.NODE_ENV === 'production') {
@@ -79,6 +80,7 @@ const sessionConfig = {
 };
 
 app.use(session(sessionConfig));
+app.use(flash());
 
 // Initialize Passport and restore authentication state from session
 app.use(passport.initialize());
@@ -185,13 +187,29 @@ app.get('/', (req, res) => {
 const authRoutes = require('./routes/api/auth');
 const permissionRoutes = require('./routes/api/permissionroutes');
 const pendingRequestRoutes = require('./routes/api/pendingRequestRoutes');
+const approvedRequestRoutes = require('./routes/api/approvedRequestRoutes');
+const rejectedRequestRoutes = require('./routes/api/rejectedRequestRoutes');
+const userRoutes = require('./routes/api/userRoutes');
+const revokedUserRoutes = require('./routes/api/revokedUserRoutes');
 app.use('/auth', authRoutes);
 app.use('/api/permission', permissionRoutes);
 app.use('/api/pending-requests', pendingRequestRoutes);
+app.use('/api/approved-requests', approvedRequestRoutes);
+app.use('/api/rejected-requests', rejectedRequestRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/revoked-users', revokedUserRoutes);
 
 // Web routes
 const approvalRoutes = require('./routes/web/approvalRoutes');
+const approvedRequestWebRoutes = require('./routes/web/approvedRequestRoutes');
+const rejectedRequestWebRoutes = require('./routes/web/rejectedRequestRoutes');
+const userWebRoutes = require('./routes/web/userRoutes');
+const revokedUserWebRoutes = require('./routes/web/revokedUserRoutes');
 app.use('/approvals', approvalRoutes);
+app.use('/approved-requests', approvedRequestWebRoutes);
+app.use('/rejected-requests', rejectedRequestWebRoutes);
+app.use('/users', userWebRoutes);
+app.use('/revoked-users', revokedUserWebRoutes);
 
 // Add middleware to update sidebar stats
 app.use(async (req, res, next) => {
@@ -250,6 +268,29 @@ app.use(async (req, res, next) => {
 
             const [userCountResult] = await pool.query(userCountQuery, userCountParams);
             res.locals.stats.totalUsers = userCountResult[0].count;
+            
+            // Get count of revoked users
+            let revokedUserCountQuery = '';
+            let revokedUserCountParams = [];
+
+            if (activeUser.role === 'System Administrator') {
+                revokedUserCountQuery = `
+                    SELECT COUNT(*) as count
+                    FROM users
+                    WHERE company_id = ? AND u_status = 'revoked'
+                `;
+                revokedUserCountParams = [activeUser.company_id];
+            } else {
+                revokedUserCountQuery = `
+                    SELECT COUNT(*) as count
+                    FROM users
+                    WHERE company_id = ? AND branch_id = ? AND u_status = 'revoked'
+                `;
+                revokedUserCountParams = [activeUser.company_id, activeUser.branch_id];
+            }
+
+            const [revokedUserCountResult] = await pool.query(revokedUserCountQuery, revokedUserCountParams);
+            res.locals.stats.revokedUsers = revokedUserCountResult[0].count;
             
         } catch (error) {
             console.error('Error updating sidebar stats:', error);
