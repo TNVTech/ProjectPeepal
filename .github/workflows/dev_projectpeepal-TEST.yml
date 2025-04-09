@@ -70,6 +70,6 @@ jobs:
         id: deploy-to-webapp
         uses: azure/webapps-deploy@v3
         with:
-          app-name: 'ProjectPeepal-TEST'
+          app-name: 'projectpeepal-test-emcuhqccf7byh2gg.canadacentral-01'
           package: ./backend
           
