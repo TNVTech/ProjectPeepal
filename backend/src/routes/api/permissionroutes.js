@@ -288,4 +288,120 @@ router.put('/requests/:requestId', async (req, res) => {
     }
 });
 
+/**
+ * @route GET /api/permission/branches
+ * @desc Get branches based on user permissions
+ * @access Private
+ */
+router.get('/branches', async (req, res) => {
+    try {
+        // Check if user has activeUser in session
+        if (!req.session.activeUser) {
+            return res.status(401).json({
+                status: 'error',
+                message: 'User session not found'
+            });
+        }
+
+        const activeUser = req.session.activeUser;
+        let query;
+        let params = [];
+
+        if (activeUser.role === 'System Administrator' || 
+            (res.locals.userPrivileges && res.locals.userPrivileges.includes('assign_branch'))) {
+            // Get all branches in the company
+            query = `
+                SELECT branch_id, b_name
+                FROM branches
+                WHERE company_id = ?
+                ORDER BY b_name
+            `;
+            params = [activeUser.company_id];
+        } else {
+            // Get only user's branch
+            query = `
+                SELECT branch_id, b_name
+                FROM branches
+                WHERE branch_id = ?
+            `;
+            params = [activeUser.branch_id];
+        }
+
+        const [branches] = await pool.query(query, params);
+
+        res.json({
+            status: 'success',
+            data: branches
+        });
+    } catch (error) {
+        console.error('Error fetching branches:', error);
+        res.status(500).json({
+            status: 'error',
+            message: 'An error occurred while fetching branches'
+        });
+    }
+});
+
+/**
+ * @route GET /api/permission/roles
+ * @desc Get roles based on user permissions
+ * @access Private
+ */
+router.get('/roles', async (req, res) => {
+    try {
+        // Check if user has activeUser in session
+        if (!req.session.activeUser) {
+            return res.status(401).json({
+                status: 'error',
+                message: 'User session not found'
+            });
+        }
+
+        const activeUser = req.session.activeUser;
+        let query;
+        let params = [];
+
+        if (activeUser.role === 'System Administrator') {
+            // Get all roles in the company
+            query = `
+                SELECT role_id, role_name
+                FROM roles
+                WHERE for_company = ?
+                ORDER BY role_name
+            `;
+            params = [activeUser.company_id];
+        } else if (res.locals.userPrivileges && res.locals.userPrivileges.includes('assign_role')) {
+            // Get roles for the user's branch
+            query = `
+                SELECT role_id, role_name
+                FROM roles
+                WHERE for_branch = ?
+                ORDER BY role_name
+            `;
+            params = [activeUser.branch_id];
+        } else {
+            // Get only user's role
+            query = `
+                SELECT role_id, role_name
+                FROM roles
+                WHERE role_id = ?
+            `;
+            params = [activeUser.role];
+        }
+
+        const [roles] = await pool.query(query, params);
+
+        res.json({
+            status: 'success',
+            data: roles
+        });
+    } catch (error) {
+        console.error('Error fetching roles:', error);
+        res.status(500).json({
+            status: 'error',
+            message: 'An error occurred while fetching roles'
+        });
+    }
+});
+
 module.exports = router;

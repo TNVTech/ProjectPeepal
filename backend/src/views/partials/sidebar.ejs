@@ -30,27 +30,99 @@
                     </a>
                 </li>
                 
-                <% if (activeUser && (activeUser.role === 'System Administrator' || (typeof userPrivileges !== 'undefined' && userPrivileges.includes('list_requests')))) { %>
-                <li class="nav-item">
-                    <a href="/approvals" class="nav-link <%= path === '/approvals' ? 'active' : '' %>">
-                        <i class="nav-icon fas fa-clipboard-check"></i>
+                <!-- Request Management Group -->
+                <li class="nav-item has-treeview">
+                    <a href="#" class="nav-link">
+                        <i class="nav-icon fas fa-clipboard-list"></i>
                         <p>
-                            Approvals
-                            <span class="badge badge-info right"><%= (typeof stats !== 'undefined' && stats && stats.pendingRequests) ? stats.pendingRequests : 0 %></span>
+                            Request Management
+                            <i class="right fas fa-angle-left"></i>
                         </p>
                     </a>
+                    <ul class="nav nav-treeview">
+                        <% if (activeUser && (activeUser.role === 'System Administrator' || (typeof userPrivileges !== 'undefined' && userPrivileges.includes('list_requests')))) { %>
+                        <li class="nav-item">
+                            <a href="/approvals" class="nav-link <%= path === '/approvals' ? 'active' : '' %>">
+                                <i class="nav-icon fas fa-clipboard-check"></i>
+                                <p>
+                                    Pending Approvals
+                                    <span class="badge badge-info right"><%= (typeof stats !== 'undefined' && stats && stats.pendingRequests) ? stats.pendingRequests : 0 %></span>
+                                </p>
+                            </a>
+                        </li>
+                        <% } %>
+
+                        <% if (activeUser && (activeUser.role === 'System Administrator' || (activeUser.role !== 'System Administrator' && typeof userPrivileges !== 'undefined' && userPrivileges.includes('view_approved_request')))) { %>
+                        <li class="nav-item">
+                            <a href="/approved-requests" class="nav-link <%= path === '/approved-requests' ? 'active' : '' %>">
+                                <i class="nav-icon fas fa-check-circle"></i>
+                                <p>
+                                    Approved Requests
+                                    <span class="badge badge-success right"><%= (typeof stats !== 'undefined' && stats && stats.approvedRequests) ? stats.approvedRequests : 0 %></span>
+                                </p>
+                            </a>
+                        </li>
+                        <% } %>
+
+                        <% if (activeUser && (activeUser.role === 'System Administrator' || (typeof userPrivileges !== 'undefined' && userPrivileges.includes('view_rejected_requests')))) { %>
+                        <li class="nav-item">
+                            <a href="/rejected-requests" class="nav-link <%= path === '/rejected-requests' ? 'active' : '' %>">
+                                <i class="nav-icon fas fa-times-circle"></i>
+                                <p>
+                                    Rejected Requests
+                                    <span class="badge badge-danger right"><%= (typeof stats !== 'undefined' && stats && stats.rejectedRequests) ? stats.rejectedRequests : 0 %></span>
+                                </p>
+                            </a>
+                        </li>
+                        <% } %>
+                    </ul>
                 </li>
-                <% } %>
                 
-                <li class="nav-item">
-                    <a href="/users" class="nav-link <%= path === '/users' ? 'active' : '' %>">
+                <!-- User Management Group -->
+                <li class="nav-item has-treeview">
+                    <a href="#" class="nav-link">
                         <i class="nav-icon fas fa-users"></i>
                         <p>
-                            Users
-                            <span class="badge badge-info right"><%= (typeof stats !== 'undefined' && stats && stats.totalUsers) ? stats.totalUsers : 0 %></span>
+                            User Management
+                            <i class="right fas fa-angle-left"></i>
                         </p>
                     </a>
+                    <ul class="nav nav-treeview">
+                        <% if (activeUser && (activeUser.role === 'System Administrator' || (typeof userPrivileges !== 'undefined' && userPrivileges.includes('list_active_users')))) { %>
+                        <li class="nav-item">
+                            <a href="/users" class="nav-link <%= path === '/users' ? 'active' : '' %>">
+                                <i class="nav-icon fas fa-user-check"></i>
+                                <p>
+                                    Active Users
+                                    <span class="badge badge-info right"><%= (typeof stats !== 'undefined' && stats && stats.totalUsers) ? stats.totalUsers : 0 %></span>
+                                </p>
+                            </a>
+                        </li>
+                        <% } %>
+                        
+                        <% if (activeUser && (activeUser.role === 'System Administrator' || (typeof userPrivileges !== 'undefined' && userPrivileges.includes('add_users')))) { %>
+                        <li class="nav-item">
+                            <a href="/add-user" class="nav-link <%= path === '/add-user' ? 'active' : '' %>">
+                                <i class="nav-icon fas fa-user-plus"></i>
+                                <p>Add User</p>
+                            </a>
+                        </li>
+                        <% } %>
+                        
+                        <% if (activeUser && (activeUser.role === 'System Administrator' || (typeof userPrivileges !== 'undefined' && userPrivileges.includes('list_revoked_users')))) { %>
+                        <li class="nav-item">
+                            <a href="/revoked-users" class="nav-link <%= path === '/revoked-users' ? 'active' : '' %>">
+                                <i class="nav-icon fas fa-user-slash"></i>
+                                <p>
+                                    Revoked Users
+                                    <span class="badge badge-danger right"><%= (typeof stats !== 'undefined' && stats && stats.revokedUsers) ? stats.revokedUsers : 0 %></span>
+                                </p>
+                            </a>
+                        </li>
+                        <% } %>
+                    </ul>
                 </li>
+                
                 <li class="nav-item">
                     <a href="/reports" class="nav-link <%= path === '/reports' ? 'active' : '' %>">
                         <i class="nav-icon fas fa-chart-bar"></i>

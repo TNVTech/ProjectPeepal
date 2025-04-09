@@ -1,54 +1,31 @@
 <%- contentFor('body') %>
 
-<!-- Content Header (Page header) -->
-<!-- <section class="content-header">
-    <div class="container-fluid">
-        <div class="row mb-2">
-            <div class="col-sm-6">
-                <h1>Pending Approvals</h1>
-            </div>
-            <div class="col-sm-6">
-                <ol class="breadcrumb float-sm-right">
-                    <li class="breadcrumb-item"><a href="/dashboard">Home</a></li>
-                    <li class="breadcrumb-item active">Pending Approvals</li>
-                </ol>
-            </div>
-        </div>
-    </div>
-</section> -->
-
-<!-- Main content -->
-<section class="content">
-    <div class="container-fluid">
-        <div class="row">
-            <div class="col-12">
-                <div class="card">
-                    <div class="card-header">
-                        <h3 class="card-title">Pending Approval Requests</h3>
-                    </div>
-                    <!-- /.card-header -->
-                    <div class="card-body">
-                        <% if (typeof pendingRequests === 'undefined') { %>
-                            <div class="alert alert-warning">
-                                <h5><i class="icon fas fa-exclamation-triangle"></i> Debug Information</h5>
-                                The pendingRequests variable is undefined. This might be an issue with the server-side code.
-                            </div>
-                        <% } else if (pendingRequests && pendingRequests.length > 0) { %>
-                            <table id="approvalsTable" class="table table-bordered table-striped">
-                                <thead>
-                                    <tr>
-                                        <th>ID</th>
-                                        <th>Name</th>
-                                        <th>Email</th>
-                                        <th>Company</th>
-                                        <th>Branch</th>
-                                        <th>Role</th>
-                                        <th>Request Date</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <% pendingRequests.forEach(function(request) { %>
-                                        <tr data-request-id="<%= request.request_id %>" 
+    <!-- Main content -->
+    <section class="content">
+        <div class="container-fluid">
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">List of Rejected Requests</h3>
+                        </div>
+                        <div class="card-body">
+                            <% if (rejectedRequests && rejectedRequests.length > 0) { %>
+                                <table id="rejectedRequestsTable" class="table table-bordered table-striped">
+                                    <thead>
+                                        <tr>
+                                            <th>Request ID</th>
+                                            <th>Display Name</th>
+                                            <th>Email</th>
+                                            <th>Company</th>
+                                            <th>Branch</th>
+                                            <th>Role</th>
+                                            <th>Request Date</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <% rejectedRequests.forEach(function(request) { %>
+                                        <tr data-request-id="<%= request.request_id %>"
                                             data-display-name="<%= request.display_name %>"
                                             data-email="<%= request.email %>"
                                             data-company="<%= request.company_name %>"
@@ -56,7 +33,7 @@
                                             data-branch-id="<%= request.branch_id %>"
                                             data-role="<%= request.role_name %>"
                                             data-role-id="<%= request.role %>"
-                                            data-request-date="<%= new Date(request.created_at).toLocaleDateString() %>"
+                                            data-request-date="<%= new Date(request.created_at).toLocaleString() %>"
                                             style="cursor: pointer;">
                                             <td><%= request.request_id %></td>
                                             <td><%= request.display_name %></td>
@@ -64,29 +41,24 @@
                                             <td><%= request.company_name %></td>
                                             <td><%= request.branch_name %></td>
                                             <td><%= request.role_name %></td>
-                                            <td><%= new Date(request.created_at).toLocaleDateString() %></td>
+                                            <td><%= new Date(request.created_at).toLocaleString() %></td>
                                         </tr>
-                                    <% }); %>
-                                </tbody>
-                            </table>
-                        <% } else { %>
-                            <div class="alert alert-info">
-                                <h5><i class="icon fas fa-info"></i> No pending requests</h5>
-                                There are no pending approval requests at this time.
-                            </div>
-                        <% } %>
+                                        <% }); %>
+                                    </tbody>
+                                </table>
+                            <% } else { %>
+                                <div class="alert alert-info">
+                                    <h5><i class="icon fas fa-info"></i> No rejected requests</h5>
+                                    There are no rejected requests at this time.
+                                </div>
+                            <% } %>
+                        </div>
                     </div>
-                    <!-- /.card-body -->
                 </div>
-                <!-- /.card -->
             </div>
-            <!-- /.col -->
         </div>
-        <!-- /.row -->
-    </div>
-    <!-- /.container-fluid -->
-</section>
-<!-- /.content -->
+    </section>
+</div>
 
 <!-- Request Details Modal -->
 <div class="modal fade" id="requestDetailsModal" tabindex="-1" role="dialog" aria-labelledby="requestDetailsModalLabel" aria-hidden="true">
@@ -126,7 +98,7 @@
                         <% } %>
                     </div>
                     <div class="form-group">
-                        <label for="role">Requested Role</label>
+                        <label for="role">Role</label>
                         <% if (activeUser.role === 'System Administrator' || (typeof userPrivileges !== 'undefined' && userPrivileges.includes('assign_role'))) { %>
                             <div class="select2-purple">
                                 <select class="form-control select2bs4" id="role" name="role" data-dropdown-css-class="select2-purple" style="width: 100%;">
@@ -145,8 +117,7 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
-                <button type="button" class="btn btn-success" onclick="showConfirmationModal('approve')">Approve</button>
-                <button type="button" class="btn btn-danger" onclick="showConfirmationModal('reject')">Reject</button>
+                <button type="button" class="btn btn-success" onclick="showConfirmationModal('reapprove')">Reapprove</button>
             </div>
         </div>
     </div>
@@ -157,22 +128,21 @@
     <div class="modal-dialog" role="document">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="confirmationModalLabel">Confirm Action</h5>
+                <h5 class="modal-title" id="confirmationModalLabel">Confirm Reapproval</h5>
                 <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                     <span aria-hidden="true">&times;</span>
                 </button>
             </div>
             <div class="modal-body">
-                <form id="confirmationForm" method="POST" action="/approvals/confirm">
+                <form id="confirmationForm" method="POST">
                     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                     <input type="hidden" name="requestId" id="confirmRequestId">
-                    <input type="hidden" name="action" id="confirmAction">
-                    <p id="confirmationMessage"></p>
+                    <p id="confirmationMessage">Are you sure you want to reapprove this request? This will create a new user account.</p>
                 </form>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary" id="confirmActionBtn" onclick="submitConfirmationForm()">Confirm</button>
+                <button type="button" class="btn btn-success" id="confirmActionBtn" onclick="submitConfirmationForm()">Confirm Reapproval</button>
             </div>
         </div>
     </div>
@@ -182,7 +152,6 @@
 <script>
     // Global variables
     let currentRequestId = '';
-    let currentAction = '';
     let originalBranchId = '';
     let originalRoleId = '';
     
@@ -241,7 +210,6 @@
     // Function to show the confirmation modal
     function showConfirmationModal(action) {
         console.log("showConfirmationModal called with action:", action);
-        currentAction = action;
         currentRequestId = $('#requestId').val();
         
         // Get the selected branch and role IDs if they are dropdowns
@@ -252,7 +220,6 @@
         
         // Set form values
         $('#confirmRequestId').val(currentRequestId);
-        $('#confirmAction').val(action);
         
         // Add branch and role to form data if they were changed
         if (selectedBranchId !== originalBranchId) {
@@ -272,18 +239,10 @@
         }
         
         // Set the confirmation message
-        const message = action === 'approve' 
-            ? 'Are you sure you want to approve this request?' 
-            : 'Are you sure you want to reject this request?';
+        $('#confirmationMessage').text('Are you sure you want to reapprove this request? This will create a new user account.');
         
-        $('#confirmationMessage').text(message);
-        
-        // Set the button color based on the action
-        if (action === 'approve') {
-            $('#confirmActionBtn').removeClass('btn-danger').addClass('btn-success');
-        } else {
-            $('#confirmActionBtn').removeClass('btn-success').addClass('btn-danger');
-        }
+        // Set the button color
+        $('#confirmActionBtn').removeClass('btn-danger').addClass('btn-success');
         
         // Show the confirmation modal
         $('#confirmationModal').modal('show');
@@ -293,7 +252,6 @@
     function submitConfirmationForm() {
         console.log("Submitting confirmation form");
         console.log("Request ID:", currentRequestId);
-        console.log("Action:", currentAction);
         
         // Show loading overlay if SweetAlert2 is available
         if (typeof Swal !== 'undefined') {
@@ -311,31 +269,32 @@
         }
         
         // Get form data
-        const formData = new FormData($('#confirmationForm')[0]);
-        const data = {};
-        formData.forEach((value, key) => data[key] = value);
+        const formData = {
+            requestId: currentRequestId,
+            _csrf: $('input[name="_csrf"]').val()
+        };
         
-        console.log("Form data:", data);
+        console.log("Form data:", formData);
         
         // Submit via AJAX
         $.ajax({
-            url: '/approvals/confirm',
+            url: `/rejected-requests/${currentRequestId}/reapprove`,
             type: 'POST',
-            data: data,
+            data: formData,
             success: function(response) {
                 console.log("Success response:", response);
                 if (typeof Swal !== 'undefined') {
                     Swal.fire({
                         icon: 'success',
                         title: 'Success!',
-                        text: 'The request has been processed successfully.',
+                        text: 'The request has been reapproved successfully.',
                         showConfirmButton: false,
                         timer: 1500
                     }).then(() => {
                         window.location.reload();
                     });
                 } else {
-                    alert("Request processed successfully!");
+                    alert("Request reapproved successfully!");
                     window.location.reload();
                 }
             },
@@ -358,7 +317,7 @@
     }
 
     $(document).ready(function() {
-        console.log("Document ready, initializing approvals page");
+        console.log("Document ready, initializing rejected requests page");
         
         // Initialize Select2 for dropdowns with AdminLTE styling
         if ($.fn.select2) {
@@ -382,7 +341,7 @@
         
         // Initialize DataTable if available
         if (typeof $.fn.DataTable !== 'undefined') {
-            $('#approvalsTable').DataTable({
+            $('#rejectedRequestsTable').DataTable({
                 "paging": true,
                 "lengthChange": true,
                 "searching": true,
@@ -394,11 +353,11 @@
             console.log("DataTable initialized");
         } else {
             console.error("DataTables is not loaded!");
-            $('#approvalsTable').addClass('table-bordered table-striped');
+            $('#rejectedRequestsTable').addClass('table-bordered table-striped');
         }
 
         // Handle row click to show request details
-        $('#approvalsTable tbody').on('click', 'tr', function() {
+        $('#rejectedRequestsTable tbody').on('click', 'tr', function() {
             console.log("Row clicked");
             
             // Get data from the clicked row

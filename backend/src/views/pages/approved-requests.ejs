@@ -1,0 +1,91 @@
+<%- contentFor('body') %>
+
+<!-- Main content -->
+<section class="content">
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Approved Requests</h3>
+                    </div>
+                    <!-- /.card-header -->
+                    <div class="card-body">
+                        <% if (typeof approvedRequests === 'undefined') { %>
+                            <div class="alert alert-warning">
+                                <h5><i class="icon fas fa-exclamation-triangle"></i> Debug Information</h5>
+                                The approvedRequests variable is undefined. This might be an issue with the server-side code.
+                            </div>
+                        <% } else if (approvedRequests && approvedRequests.length > 0) { %>
+                            <table id="approvedRequestsTable" class="table table-bordered table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Name</th>
+                                        <th>Email</th>
+                                        <th>Company</th>
+                                        <th>Branch</th>
+                                        <th>Role</th>
+                                        <th>Request Date</th>
+                                        <th>Approval Date</th>
+                                        <th>Approved By</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <% approvedRequests.forEach(function(request) { %>
+                                        <tr>
+                                            <td><%= request.request_id %></td>
+                                            <td><%= request.display_name %></td>
+                                            <td><%= request.email %></td>
+                                            <td><%= request.company_name %></td>
+                                            <td><%= request.branch_name %></td>
+                                            <td><%= request.role_name %></td>
+                                            <td><%= new Date(request.created_at).toLocaleDateString() %></td>
+                                            <td><%= new Date(request.updated_at).toLocaleDateString() %></td>
+                                            <td><%= request.updated_by || 'System' %></td>
+                                        </tr>
+                                    <% }); %>
+                                </tbody>
+                            </table>
+                        <% } else { %>
+                            <div class="alert alert-info">
+                                <h5><i class="icon fas fa-info"></i> No approved requests</h5>
+                                There are no approved requests at this time.
+                            </div>
+                        <% } %>
+                    </div>
+                    <!-- /.card-body -->
+                </div>
+                <!-- /.card -->
+            </div>
+            <!-- /.col -->
+        </div>
+        <!-- /.row -->
+    </div>
+    <!-- /.container-fluid -->
+</section>
+<!-- /.content -->
+
+<%- contentFor('scripts') %>
+<script>
+    $(document).ready(function() {
+        console.log("Document ready, initializing approved requests page");
+        
+        // Initialize DataTable if available
+        if (typeof $.fn.DataTable !== 'undefined') {
+            $('#approvedRequestsTable').DataTable({
+                "paging": true,
+                "lengthChange": true,
+                "searching": true,
+                "ordering": true,
+                "info": true,
+                "autoWidth": false,
+                "responsive": true,
+            });
+            console.log("DataTable initialized");
+        } else {
+            console.error("DataTables is not loaded!");
+            $('#approvedRequestsTable').addClass('table-bordered table-striped');
+        }
+    });
+</script> 
