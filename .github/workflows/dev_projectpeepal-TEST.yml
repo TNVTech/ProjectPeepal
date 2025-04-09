@@ -1,8 +1,7 @@
-# Rohan Gurung test
 # Docs for the Azure Web Apps Deploy action: https://github.com/Azure/webapps-deploy
 # More GitHub Actions for Azure: https://github.com/Azure/actions
 
-name: Build and deploy Node.js app to Azure Web App - projectpeepal-dev
+name: Build and deploy Node.js app to Azure Web App - projectpeepal-test
 
 on:
   push:
@@ -24,12 +23,11 @@ jobs:
         with:
           node-version: '22.x'
 
-      - name: npm install and build
-        working-directory: ./backend
+      - name: npm install, build, and test
         run: |
           npm install
           npm run build --if-present
-          
+          npm run test --if-present
 
       - name: Zip artifact for deployment
         run: zip release.zip ./* -r
@@ -62,14 +60,15 @@ jobs:
       - name: Login to Azure
         uses: azure/login@v2
         with:
-          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_E71F6F1B4CD6485BB612971018D380FD }}
-          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_CFA78EF969A64616B19DDCB7ED198D16 }}
-          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_F3325BE23DBF4336B4B2AE979F9A9576 }}
+          client-id: ${{ secrets.__clientidsecretname__ }}
+          tenant-id: ${{ secrets.__tenantidsecretname__ }}
+          subscription-id: ${{ secrets.__subscriptionidsecretname__ }}
 
       - name: 'Deploy to Azure Web App'
         id: deploy-to-webapp
         uses: azure/webapps-deploy@v3
         with:
-          app-name: 'projectpeepal-test-emcuhqccf7byh2gg.canadacentral-01'
-          package: ./backend
+          app-name: 'projectpeepal-test'
+          slot-name: 'Production'
+          package: .
           
