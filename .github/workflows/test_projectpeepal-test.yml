@@ -70,7 +70,7 @@ jobs:
         id: deploy-to-webapp
         uses: azure/webapps-deploy@v3
         with:
-          app-name: 'projectpeepal-dev'  # you also need to change this for different env
+          app-name: 'projectpeepal-test'  # you also need to change this for different env
           slot-name: 'Production'  
           package: ./backend
           
