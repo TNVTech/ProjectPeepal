@@ -8,6 +8,13 @@
                     <div class="card">
                         <div class="card-header">
                             <h3 class="card-title">List of Active Users</h3>
+                            <% if (activeUser && (activeUser.role === 'System Administrator' || (typeof userPrivileges !== 'undefined' && userPrivileges.includes('add_users')))) { %>
+                            <div class="card-tools">
+                                <a href="/add-user" class="btn btn-primary btn-sm">
+                                    <i class="fas fa-user-plus"></i> Add User
+                                </a>
+                            </div>
+                            <% } %>
                         </div>
                         <div class="card-body">
                             <% if (users && users.length > 0) { %>

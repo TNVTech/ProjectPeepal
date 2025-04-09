@@ -53,7 +53,9 @@
                                             data-email="<%= request.email %>"
                                             data-company="<%= request.company_name %>"
                                             data-branch="<%= request.branch_name %>"
+                                            data-branch-id="<%= request.branch_id %>"
                                             data-role="<%= request.role_name %>"
+                                            data-role-id="<%= request.role %>"
                                             data-request-date="<%= new Date(request.created_at).toLocaleDateString() %>"
                                             style="cursor: pointer;">
                                             <td><%= request.request_id %></td>
@@ -113,11 +115,27 @@
                     </div>
                     <div class="form-group">
                         <label for="branch">Branch</label>
-                        <input type="text" class="form-control" id="branch" readonly>
+                        <% if (activeUser.role === 'System Administrator' || (typeof userPrivileges !== 'undefined' && userPrivileges.includes('assign_branch'))) { %>
+                            <div class="select2-purple">
+                                <select class="form-control select2bs4" id="branch" name="branch" data-dropdown-css-class="select2-purple" style="width: 100%;">
+                                    <option value="">Loading branches...</option>
+                                </select>
+                            </div>
+                        <% } else { %>
+                            <input type="text" class="form-control" id="branch" readonly>
+                        <% } %>
                     </div>
                     <div class="form-group">
                         <label for="role">Requested Role</label>
-                        <input type="text" class="form-control" id="role" readonly>
+                        <% if (activeUser.role === 'System Administrator' || (typeof userPrivileges !== 'undefined' && userPrivileges.includes('assign_role'))) { %>
+                            <div class="select2-purple">
+                                <select class="form-control select2bs4" id="role" name="role" data-dropdown-css-class="select2-purple" style="width: 100%;">
+                                    <option value="">Loading roles...</option>
+                                </select>
+                            </div>
+                        <% } else { %>
+                            <input type="text" class="form-control" id="role" readonly>
+                        <% } %>
                     </div>
                     <div class="form-group">
                         <label for="requestDate">Request Date</label>
@@ -165,6 +183,60 @@
     // Global variables
     let currentRequestId = '';
     let currentAction = '';
+    let originalBranchId = '';
+    let originalRoleId = '';
+    
+    // Function to load branches
+    function loadBranches() {
+        console.log("Loading branches");
+        $.ajax({
+            url: '/api/permission/branches',
+            type: 'GET',
+            success: function(response) {
+                console.log("Branches loaded:", response);
+                if (response.status === 'success') {
+                    const branchSelect = $('#branch');
+                    branchSelect.empty();
+                    response.data.forEach(function(branch) {
+                        const option = new Option(branch.b_name, branch.branch_id, false, branch.branch_id == originalBranchId);
+                        branchSelect.append(option);
+                    });
+                    branchSelect.trigger('change');
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error("Error loading branches:", error);
+                const branchSelect = $('#branch');
+                branchSelect.empty();
+            }
+        });
+    }
+    
+    // Function to load roles
+    function loadRoles() {
+        console.log("Loading roles");
+        $.ajax({
+            url: '/api/permission/roles',
+            type: 'GET',
+            success: function(response) {
+                console.log("Roles loaded:", response);
+                if (response.status === 'success') {
+                    const roleSelect = $('#role');
+                    roleSelect.empty();
+                    response.data.forEach(function(role) {
+                        const option = new Option(role.role_name, role.role_id, false, role.role_id == originalRoleId);
+                        roleSelect.append(option);
+                    });
+                    roleSelect.trigger('change');
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error("Error loading roles:", error);
+                const roleSelect = $('#role');
+                roleSelect.empty();
+            }
+        });
+    }
     
     // Function to show the confirmation modal
     function showConfirmationModal(action) {
@@ -172,9 +244,32 @@
         currentAction = action;
         currentRequestId = $('#requestId').val();
         
+        // Get the selected branch and role IDs if they are dropdowns
+        const branchElement = $('#branch');
+        const roleElement = $('#role');
+        const selectedBranchId = branchElement.is('select') ? branchElement.val() : originalBranchId;
+        const selectedRoleId = roleElement.is('select') ? roleElement.val() : originalRoleId;
+        
         // Set form values
         $('#confirmRequestId').val(currentRequestId);
         $('#confirmAction').val(action);
+        
+        // Add branch and role to form data if they were changed
+        if (selectedBranchId !== originalBranchId) {
+            $('<input>').attr({
+                type: 'hidden',
+                name: 'branch_id',
+                value: selectedBranchId
+            }).appendTo('#confirmationForm');
+        }
+        
+        if (selectedRoleId !== originalRoleId) {
+            $('<input>').attr({
+                type: 'hidden',
+                name: 'role',
+                value: selectedRoleId
+            }).appendTo('#confirmationForm');
+        }
         
         // Set the confirmation message
         const message = action === 'approve' 
@@ -216,19 +311,17 @@
         }
         
         // Get form data
-        const formData = {
-            requestId: currentRequestId,
-            action: currentAction,
-            _csrf: $('input[name="_csrf"]').val()
-        };
+        const formData = new FormData($('#confirmationForm')[0]);
+        const data = {};
+        formData.forEach((value, key) => data[key] = value);
         
-        console.log("Form data:", formData);
+        console.log("Form data:", data);
         
         // Submit via AJAX
         $.ajax({
             url: '/approvals/confirm',
             type: 'POST',
-            data: formData,
+            data: data,
             success: function(response) {
                 console.log("Success response:", response);
                 if (typeof Swal !== 'undefined') {
@@ -267,6 +360,26 @@
     $(document).ready(function() {
         console.log("Document ready, initializing approvals page");
         
+        // Initialize Select2 for dropdowns with AdminLTE styling
+        if ($.fn.select2) {
+            $('.select2bs4').select2({
+                theme: 'bootstrap4',
+                width: '100%',
+                dropdownParent: $('#requestDetailsModal'),
+                placeholder: 'Select an option',
+                allowClear: true,
+                containerCssClass: 'select2-purple',
+                dropdownCssClass: 'select2-purple',
+                language: {
+                    noResults: function() {
+                        return "No matches found";
+                    }
+                },
+                templateResult: formatOption,
+                templateSelection: formatOption
+            });
+        }
+        
         // Initialize DataTable if available
         if (typeof $.fn.DataTable !== 'undefined') {
             $('#approvalsTable').DataTable({
@@ -300,17 +413,117 @@
             console.log("Request ID:", currentRequestId);
             console.log("Display Name:", displayName);
             
+            // Store original branch and role IDs
+            originalBranchId = $(this).data('branch-id');
+            originalRoleId = $(this).data('role-id');
+            console.log("Original Branch ID:", originalBranchId);
+            console.log("Original Role ID:", originalRoleId);
+            
             // Set the data in the modal
             $('#requestId').val(currentRequestId);
             $('#displayName').val(displayName);
             $('#email').val(email);
             $('#company').val(company);
-            $('#branch').val(branch);
-            $('#role').val(role);
+            
+            // Handle branch field
+            const branchElement = $('#branch');
+            if (branchElement.is('select')) {
+                loadBranches();
+            } else {
+                branchElement.val(branch);
+            }
+            
+            // Handle role field
+            const roleElement = $('#role');
+            if (roleElement.is('select')) {
+                loadRoles();
+            } else {
+                roleElement.val(role);
+            }
+            
             $('#requestDate').val(requestDate);
             
             // Show the modal
             $('#requestDetailsModal').modal('show');
         });
     });
-</script> 
+
+    // Function to format dropdown options
+    function formatOption(option) {
+        if (!option.id) {
+            return option.text;
+        }
+        
+        return $('<span>')
+            .addClass('d-flex align-items-center')
+            .text(option.text);
+    }
+</script>
+
+<style>
+    /* Custom Select2 Styling */
+    .select2-container--bootstrap4 .select2-selection {
+        border-radius: 0.25rem;
+        border: 1px solid #ced4da;
+        min-height: 38px;
+        padding: 0.375rem 0.75rem;
+    }
+
+    .select2-container--bootstrap4 .select2-selection--single {
+        display: flex;
+        align-items: center;
+    }
+
+    .select2-container--bootstrap4 .select2-selection--single .select2-selection__rendered {
+        color: #495057;
+        line-height: 1.5;
+        padding-left: 0;
+    }
+
+    .select2-container--bootstrap4 .select2-selection--single .select2-selection__arrow {
+        position: absolute;
+        right: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+    }
+
+    .select2-container--bootstrap4 .select2-dropdown {
+        border-color: #ced4da;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .select2-container--bootstrap4 .select2-results__option {
+        padding: 8px 12px;
+        font-size: 0.9rem;
+    }
+
+    .select2-container--bootstrap4 .select2-results__option--highlighted[aria-selected] {
+        background-color: #6f42c1;
+        color: white;
+    }
+
+    .select2-container--bootstrap4 .select2-results__option[aria-selected=true] {
+        background-color: #e9ecef;
+        color: #495057;
+    }
+
+    .select2-container--bootstrap4.select2-container--focus .select2-selection {
+        border-color: #6f42c1;
+        box-shadow: 0 0 0 0.2rem rgba(111, 66, 193, 0.25);
+    }
+
+    .select2-container--bootstrap4 .select2-selection--single .select2-selection__placeholder {
+        color: #6c757d;
+    }
+
+    .select2-container--bootstrap4 .select2-search__field {
+        padding: 8px 12px;
+        border: 1px solid #ced4da;
+        border-radius: 0.25rem;
+    }
+
+    .select2-container--bootstrap4 .select2-search__field:focus {
+        border-color: #6f42c1;
+        box-shadow: 0 0 0 0.2rem rgba(111, 66, 193, 0.25);
+    }
+</style> 

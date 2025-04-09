@@ -109,9 +109,7 @@ router.post('/confirm', async (req, res) => {
             (req.session.activeUser.privileges.includes('update_requests') || 
              req.session.activeUser.role === 'system administrator');
         
-   
-
-        const { requestId, action } = req.body;
+        const { requestId, action, branch_id, role } = req.body;
         
         if (!requestId || !action || !['approve', 'reject'].includes(action)) {
             req.flash('error', 'Invalid request parameters');
@@ -138,6 +136,67 @@ router.post('/confirm', async (req, res) => {
 
         const request = requestRows[0];
         console.log('Permission request found:', request);
+
+        // If branch_id or role is provided, validate them
+        if (branch_id || role) {
+            const activeUser = req.session.activeUser;
+
+            if (branch_id) {
+                // Validate branch_id
+                if (activeUser.role !== 'System Administrator' && 
+                    (!res.locals.userPrivileges || !res.locals.userPrivileges.includes('assign_branch'))) {
+                    req.flash('error', 'You do not have permission to change branch');
+                    return res.redirect('/approvals');
+                }
+
+                // Check if branch exists and belongs to the company
+                const [branchCheck] = await pool.query(
+                    'SELECT 1 FROM branches WHERE branch_id = ? AND company_id = ?',
+                    [branch_id, activeUser.company_id]
+                );
+
+                if (branchCheck.length === 0) {
+                    req.flash('error', 'Invalid branch selected');
+                    return res.redirect('/approvals');
+                }
+
+                // Update the request with new branch_id
+                request.branch_id = branch_id;
+            }
+
+            if (role) {
+                // Validate role
+                if (activeUser.role === 'System Administrator') {
+                    // Check if role belongs to the company
+                    const [roleCheck] = await pool.query(
+                        'SELECT 1 FROM roles WHERE role_id = ? AND for_company = ?',
+                        [role, activeUser.company_id]
+                    );
+
+                    if (roleCheck.length === 0) {
+                        req.flash('error', 'Invalid role selected');
+                        return res.redirect('/approvals');
+                    }
+                } else if (res.locals.userPrivileges && res.locals.userPrivileges.includes('assign_role')) {
+                    // Check if role belongs to the branch
+                    const [roleCheck] = await pool.query(
+                        'SELECT 1 FROM roles WHERE role_id = ? AND for_branch = ?',
+                        [role, activeUser.branch_id]
+                    );
+
+                    if (roleCheck.length === 0) {
+                        req.flash('error', 'Invalid role selected');
+                        return res.redirect('/approvals');
+                    }
+                } else {
+                    req.flash('error', 'You do not have permission to change role');
+                    return res.redirect('/approvals');
+                }
+
+                // Update the request with new role
+                request.role = role;
+            }
+        }
 
         // Start a transaction
         console.log('Starting transaction');

@@ -191,6 +191,7 @@ const approvedRequestRoutes = require('./routes/api/approvedRequestRoutes');
 const rejectedRequestRoutes = require('./routes/api/rejectedRequestRoutes');
 const userRoutes = require('./routes/api/userRoutes');
 const revokedUserRoutes = require('./routes/api/revokedUserRoutes');
+const addUserRoutes = require('./routes/api/addUserRoutes');
 app.use('/auth', authRoutes);
 app.use('/api/permission', permissionRoutes);
 app.use('/api/pending-requests', pendingRequestRoutes);
@@ -198,6 +199,7 @@ app.use('/api/approved-requests', approvedRequestRoutes);
 app.use('/api/rejected-requests', rejectedRequestRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/revoked-users', revokedUserRoutes);
+app.use('/api/add-user', addUserRoutes);
 
 // Web routes
 const approvalRoutes = require('./routes/web/approvalRoutes');
@@ -205,11 +207,13 @@ const approvedRequestWebRoutes = require('./routes/web/approvedRequestRoutes');
 const rejectedRequestWebRoutes = require('./routes/web/rejectedRequestRoutes');
 const userWebRoutes = require('./routes/web/userRoutes');
 const revokedUserWebRoutes = require('./routes/web/revokedUserRoutes');
+const addUserWebRoutes = require('./routes/web/addUserRoutes');
 app.use('/approvals', approvalRoutes);
 app.use('/approved-requests', approvedRequestWebRoutes);
 app.use('/rejected-requests', rejectedRequestWebRoutes);
 app.use('/users', userWebRoutes);
 app.use('/revoked-users', revokedUserWebRoutes);
+app.use('/add-user', addUserWebRoutes);
 
 // Add middleware to update sidebar stats
 app.use(async (req, res, next) => {

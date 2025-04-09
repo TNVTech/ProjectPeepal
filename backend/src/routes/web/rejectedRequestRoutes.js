@@ -88,6 +88,8 @@ router.post('/:requestId/reapprove', async (req, res) => {
 
         const activeUser = req.session.activeUser;
         const requestId = req.params.requestId;
+        const branchId = req.body.branch_id;
+        const role = req.body.role;
 
         // Check if user has permission to reapprove
         if (activeUser.role !== 'System Administrator') {
@@ -135,19 +137,22 @@ router.post('/:requestId/reapprove', async (req, res) => {
                 ['approved', activeUser.user_id, requestId]
             );
 
+            // Use the provided branch_id and role if they exist, otherwise use the original values
+            const finalBranchId = branchId || request.branch_id;
+            const finalRole = role || request.role;
+
             // Insert into users table
             await connection.query(
                 `INSERT INTO users (
-                    display_name, email, company_id, branch_id, role, u_status, created_at, updated_at,assigned_by,assigned_time
-                ) VALUES (?, ?, ?, ?, ?, 'active', NOW(), NOW(),?, NOW())`,
+                    display_name, email, company_id, branch_id, role, u_status, created_at, updated_at, assigned_by, assigned_time
+                ) VALUES (?, ?, ?, ?, ?, 'active', NOW(), NOW(), ?, NOW())`,
                 [
                     request.display_name,
                     request.email,
                     request.company_id,
-                    request.branch_id,
-                    request.role,
-                    activeUser.user_id,
-                    new Date()
+                    finalBranchId,
+                    finalRole,
+                    activeUser.user_id
                 ]
             );
 
