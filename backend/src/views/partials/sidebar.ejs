@@ -46,7 +46,7 @@
                                 <i class="nav-icon fas fa-clipboard-check"></i>
                                 <p>
                                     Pending Approvals
-                                    <span class="badge badge-info right"><%= (typeof stats !== 'undefined' && stats && stats.pendingRequests) ? stats.pendingRequests : 0 %></span>
+                                    <span id="pending-requests-badge" class="badge badge-info right"><%= (typeof stats !== 'undefined' && stats && stats.pendingRequests) ? stats.pendingRequests : 0 %></span>
                                 </p>
                             </a>
                         </li>
@@ -94,7 +94,7 @@
                                 <i class="nav-icon fas fa-user-check"></i>
                                 <p>
                                     Active Users
-                                    <span class="badge badge-info right"><%= (typeof stats !== 'undefined' && stats && stats.totalUsers) ? stats.totalUsers : 0 %></span>
+                                    <span id="total-users-badge" class="badge badge-info right"><%= (typeof stats !== 'undefined' && stats && stats.totalUsers) ? stats.totalUsers : 0 %></span>
                                 </p>
                             </a>
                         </li>
@@ -115,7 +115,7 @@
                                 <i class="nav-icon fas fa-user-slash"></i>
                                 <p>
                                     Revoked Users
-                                    <span class="badge badge-danger right"><%= (typeof stats !== 'undefined' && stats && stats.revokedUsers) ? stats.revokedUsers : 0 %></span>
+                                    <span id="revoked-users-badge" class="badge badge-danger right"><%= (typeof stats !== 'undefined' && stats && stats.revokedUsers) ? stats.revokedUsers : 0 %></span>
                                 </p>
                             </a>
                         </li>

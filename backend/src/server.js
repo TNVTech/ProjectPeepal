@@ -164,23 +164,15 @@ if (process.env.NODE_ENV === 'production') {
 
 // Routes
 app.get('/', (req, res) => {
-    const user = req.user;
-    res.json({
-        message: 'Welcome to the API',
-        environment: process.env.NODE_ENV,
-        ssoProvider: process.env.SSO_PROVIDER,
-        isAuthenticated: req.isAuthenticated(),
-        user: user ? {
-            displayName: user.displayName,
-            email: user._json.email,
-            username: user.preferred_username,
-            oid: user.oid,
-            sub: user.sub,
-            provider: process.env.SSO_PROVIDER,
-            company_name: user.companyname,
-            company_branch: user.officeLocation
-        } : null
+    res.render('pages/home', { 
+        title: 'Sarathi - Property Management Helper',
+        layout: false // Don't use the default layout for the home page
     });
+});
+
+// Redirect /login to root
+app.get('/login', (req, res) => {
+    res.redirect('/');
 });
 
 // Authentication routes
@@ -192,6 +184,7 @@ const rejectedRequestRoutes = require('./routes/api/rejectedRequestRoutes');
 const userRoutes = require('./routes/api/userRoutes');
 const revokedUserRoutes = require('./routes/api/revokedUserRoutes');
 const addUserRoutes = require('./routes/api/addUserRoutes');
+const statsRoutes = require('./routes/api/statsRoutes');
 app.use('/auth', authRoutes);
 app.use('/api/permission', permissionRoutes);
 app.use('/api/pending-requests', pendingRequestRoutes);
@@ -200,6 +193,7 @@ app.use('/api/rejected-requests', rejectedRequestRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/revoked-users', revokedUserRoutes);
 app.use('/api/add-user', addUserRoutes);
+app.use('/api/stats', statsRoutes);
 
 // Web routes
 const approvalRoutes = require('./routes/web/approvalRoutes');
