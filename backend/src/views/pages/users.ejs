@@ -37,7 +37,9 @@
                                             data-email="<%= user.email %>"
                                             data-company="<%= user.c_name %>"
                                             data-branch="<%= user.b_name %>"
+                                            data-branch-id="<%= user.branch_id %>"
                                             data-role="<%= user.role_name %>"
+                                            data-role-id="<%= user.role_id %>"
                                             data-created-date="<%= new Date(user.created_at).toLocaleString() %>"
                                             style="cursor: pointer;">
                                             <td><%= user.user_id %></td>
@@ -67,7 +69,7 @@
 
 <!-- User Details Modal -->
 <div class="modal fade" id="userDetailsModal" tabindex="-1" role="dialog" aria-labelledby="userDetailsModalLabel" aria-hidden="true">
-    <div class="modal-dialog" role="document">
+    <div class="modal-dialog modal-lg" role="document">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="userDetailsModalLabel">User Details</h5>
@@ -80,7 +82,7 @@
                     <input type="hidden" id="userId" name="userId">
                     <div class="form-group">
                         <label for="displayName">Display Name</label>
-                        <input type="text" class="form-control" id="displayName" readonly>
+                        <input type="text" class="form-control" id="displayName" name="displayName">
                     </div>
                     <div class="form-group">
                         <label for="email">Email</label>
@@ -92,11 +94,27 @@
                     </div>
                     <div class="form-group">
                         <label for="branch">Branch</label>
-                        <input type="text" class="form-control" id="branch" readonly>
+                        <% if (activeUser.role === 'System Administrator' || (typeof userPrivileges !== 'undefined' && userPrivileges.includes('assign_branch'))) { %>
+                            <div class="select2-purple">
+                                <select class="form-control select2bs4" id="branch" name="branch" data-dropdown-css-class="select2-purple" style="width: 100%;">
+                                    <option value="">Loading branches...</option>
+                                </select>
+                            </div>
+                        <% } else { %>
+                            <input type="text" class="form-control" id="branch" readonly>
+                        <% } %>
                     </div>
                     <div class="form-group">
                         <label for="role">Role</label>
-                        <input type="text" class="form-control" id="role" readonly>
+                        <% if (activeUser.role === 'System Administrator' || (typeof userPrivileges !== 'undefined' && userPrivileges.includes('assign_role'))) { %>
+                            <div class="select2-purple">
+                                <select class="form-control select2bs4" id="role" name="role" data-dropdown-css-class="select2-purple" style="width: 100%;">
+                                    <option value="">Loading roles...</option>
+                                </select>
+                            </div>
+                        <% } else { %>
+                            <input type="text" class="form-control" id="role" readonly>
+                        <% } %>
                     </div>
                     <div class="form-group">
                         <label for="createdDate">Created Date</label>
@@ -106,32 +124,33 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="updateDetailsBtn">Update Details</button>
                 <button type="button" class="btn btn-danger" onclick="showConfirmationModal('revoke')">Revoke User</button>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Confirmation Modal -->
-<div class="modal fade" id="confirmationModal" tabindex="-1" role="dialog" aria-labelledby="confirmationModalLabel" aria-hidden="true">
+<!-- Revoke Confirmation Modal -->
+<div class="modal fade" id="revokeConfirmModal" tabindex="-1" role="dialog" aria-labelledby="revokeConfirmModalLabel" aria-hidden="true">
     <div class="modal-dialog" role="document">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="confirmationModalLabel">Confirm Revocation</h5>
+                <h5 class="modal-title" id="revokeConfirmModalLabel">Confirm Revocation</h5>
                 <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                     <span aria-hidden="true">&times;</span>
                 </button>
             </div>
             <div class="modal-body">
-                <form id="confirmationForm" method="POST">
+                <p>Are you sure you want to revoke this user?</p>
+                <form id="revokeForm">
+                    <input type="hidden" id="revokeUserId" name="userId">
                     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-                    <input type="hidden" name="userId" id="confirmUserId">
-                    <p id="confirmationMessage">Are you sure you want to revoke this user? This action cannot be undone.</p>
                 </form>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-danger" id="confirmActionBtn" onclick="submitConfirmationForm()">Confirm Revocation</button>
+                <button type="button" class="btn btn-danger" id="confirmRevokeBtn">Revoke</button>
             </div>
         </div>
     </div>
@@ -141,28 +160,25 @@
 <script>
     // Global variables
     let currentUserId = '';
+    let originalBranchId = '';
+    let originalRoleId = '';
     
     // Function to show the confirmation modal
     function showConfirmationModal(action) {
         console.log("showConfirmationModal called with action:", action);
-        currentUserId = $('#userId').val();
         
-        // Set form values
-        $('#confirmUserId').val(currentUserId);
-        
-        // Set the confirmation message
-        $('#confirmationMessage').text('Are you sure you want to revoke this user? This action cannot be undone.');
-        
-        // Set the button color
-        $('#confirmActionBtn').removeClass('btn-success').addClass('btn-danger');
-        
-        // Show the confirmation modal
-        $('#confirmationModal').modal('show');
+        if (action === 'revoke') {
+            // Set the user ID in the revoke form
+            $('#revokeUserId').val(currentUserId);
+            
+            // Show the revoke confirmation modal
+            $('#revokeConfirmModal').modal('show');
+        }
     }
     
-    // Function to submit the confirmation form
-    function submitConfirmationForm() {
-        console.log("Submitting confirmation form");
+    // Function to submit the revoke form
+    function submitRevokeForm() {
+        console.log("Submitting revoke form");
         console.log("User ID:", currentUserId);
         
         // Show loading overlay if SweetAlert2 is available
@@ -228,6 +244,66 @@
         });
     }
 
+    // Function to load branches
+    function loadBranches(selectedBranchId) {
+        console.log("Loading branches, selected branch:", selectedBranchId);
+        $.ajax({
+            url: '/api/permission/branches',
+            type: 'GET',
+            success: function(response) {
+                console.log("Branches loaded:", response);
+                if (response.status === 'success') {
+                    const branchSelect = $('#branch');
+                    branchSelect.empty();
+                    response.data.forEach(function(branch) {
+                        const option = new Option(branch.b_name, branch.branch_id, false, branch.branch_id === selectedBranchId);
+                        branchSelect.append(option);
+                    });
+                    branchSelect.val(selectedBranchId).trigger('change');
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error("Error loading branches:", error);
+                const branchSelect = $('#branch');
+                branchSelect.empty();
+            }
+        });
+    }
+    
+    // Function to load roles
+    function loadRoles(selectedRoleId) {
+        console.log("Loading roles, selected role:", selectedRoleId);
+        $.ajax({
+            url: '/api/permission/roles',
+            type: 'GET',
+            success: function(response) {
+                console.log("Roles loaded:", response);
+                if (response.status === 'success') {
+                    const roleSelect = $('#role');
+                    roleSelect.empty();
+                    
+                    // Add a default option
+                    roleSelect.append(new Option('Select Role', '', false, false));
+                    
+                    response.data.forEach(function(role) {
+                        const option = new Option(role.role_name, role.role_id, false, role.role_id === selectedRoleId);
+                        roleSelect.append(option);
+                    });
+                    
+                    // Set the value and trigger change
+                    if (selectedRoleId) {
+                        roleSelect.val(selectedRoleId).trigger('change');
+                    }
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error("Error loading roles:", error);
+                const roleSelect = $('#role');
+                roleSelect.empty();
+            }
+        });
+    }
+
     $(document).ready(function() {
         console.log("Document ready, initializing users page");
         
@@ -248,6 +324,19 @@
             $('#usersTable').addClass('table-bordered table-striped');
         }
 
+        // Initialize Select2 for dropdowns with AdminLTE styling
+        if ($.fn.select2) {
+            $('.select2bs4').select2({
+                theme: 'bootstrap4',
+                width: '100%',
+                dropdownParent: $('#userDetailsModal'),
+                placeholder: 'Select an option',
+                allowClear: true,
+                containerCssClass: 'select2-purple',
+                dropdownCssClass: 'select2-purple'
+            });
+        }
+
         // Handle row click to show user details
         $('#usersTable tbody').on('click', 'tr', function() {
             console.log("Row clicked");
@@ -261,20 +350,180 @@
             const role = $(this).data('role');
             const createdDate = $(this).data('created-date');
             
+            // Store original IDs
+            originalBranchId = $(this).data('branch-id');
+            originalRoleId = $(this).data('role-id');
+            
             console.log("User ID:", currentUserId);
             console.log("Display Name:", displayName);
+            console.log("Original Branch ID:", originalBranchId);
+            console.log("Original Role ID:", originalRoleId);
             
             // Set the data in the modal
             $('#userId').val(currentUserId);
             $('#displayName').val(displayName);
             $('#email').val(email);
             $('#company').val(company);
-            $('#branch').val(branch);
-            $('#role').val(role);
+            
+            // Handle branch field
+            const branchElement = $('#branch');
+            if (branchElement.is('select')) {
+                loadBranches(originalBranchId);
+            } else {
+                branchElement.val(branch);
+            }
+            
+            // Handle role field
+            const roleElement = $('#role');
+            if (roleElement.is('select')) {
+                loadRoles(originalRoleId);
+            } else {
+                roleElement.val(role);
+            }
+            
             $('#createdDate').val(createdDate);
             
             // Show the modal
             $('#userDetailsModal').modal('show');
         });
+
+        // Handle update button click
+        $('#updateDetailsBtn').click(function() {
+            console.log('Update button clicked');
+            
+            // Get form data
+            const formData = {
+                userId: currentUserId,
+                displayName: $('#displayName').val(),
+                _csrf: $('input[name="_csrf"]').val()
+            };
+
+            // Add branch and role if they were changed and user has permission
+            const branchElement = $('#branch');
+            const roleElement = $('#role');
+
+            if (branchElement.is('select') && branchElement.val() !== originalBranchId) {
+                formData.branch_id = branchElement.val();
+            }
+
+            if (roleElement.is('select') && roleElement.val() !== originalRoleId) {
+                formData.role = roleElement.val();
+            }
+            
+            console.log("Form data:", formData);
+            
+            // Submit via AJAX
+            $.ajax({
+                url: `/users/${currentUserId}/update`,
+                type: 'POST',
+                data: formData,
+                success: function(response) {
+                    console.log("Success response:", response);
+                    if (typeof Swal !== 'undefined') {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Success!',
+                            text: 'User details have been updated successfully.',
+                            showConfirmButton: false,
+                            timer: 1500
+                        }).then(() => {
+                            window.location.reload();
+                        });
+                    } else {
+                        alert("User details updated successfully!");
+                        window.location.reload();
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error("Error:", error);
+                    console.error("Status:", status);
+                    console.error("Response:", xhr.responseText);
+                    
+                    if (typeof Swal !== 'undefined') {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Error!',
+                            text: 'There was a problem updating the user details. Please try again.'
+                        });
+                    } else {
+                        alert("Error: There was a problem updating the user details. Please try again.");
+                    }
+                }
+            });
+        });
+
+        // Handle confirm revoke button click
+        $('#confirmRevokeBtn').on('click', function() {
+            console.log('Confirm revoke button clicked');
+            submitRevokeForm();
+        });
     });
-</script> 
+</script>
+
+<style>
+    /* Custom Select2 Styling */
+    .select2-container--bootstrap4 .select2-selection {
+        border-radius: 0.25rem;
+        border: 1px solid #ced4da;
+        min-height: 38px;
+        padding: 0.375rem 0.75rem;
+    }
+
+    .select2-container--bootstrap4 .select2-selection--single {
+        display: flex;
+        align-items: center;
+    }
+
+    .select2-container--bootstrap4 .select2-selection--single .select2-selection__rendered {
+        color: #495057;
+        line-height: 1.5;
+        padding-left: 0;
+    }
+
+    .select2-container--bootstrap4 .select2-selection--single .select2-selection__arrow {
+        position: absolute;
+        right: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+    }
+
+    .select2-container--bootstrap4 .select2-dropdown {
+        border-color: #ced4da;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .select2-container--bootstrap4 .select2-results__option {
+        padding: 8px 12px;
+        font-size: 0.9rem;
+    }
+
+    .select2-container--bootstrap4 .select2-results__option--highlighted[aria-selected] {
+        background-color: #6f42c1;
+        color: white;
+    }
+
+    .select2-container--bootstrap4 .select2-results__option[aria-selected=true] {
+        background-color: #e9ecef;
+        color: #495057;
+    }
+
+    .select2-container--bootstrap4.select2-container--focus .select2-selection {
+        border-color: #6f42c1;
+        box-shadow: 0 0 0 0.2rem rgba(111, 66, 193, 0.25);
+    }
+
+    .select2-container--bootstrap4 .select2-selection--single .select2-selection__placeholder {
+        color: #6c757d;
+    }
+
+    .select2-container--bootstrap4 .select2-search__field {
+        padding: 8px 12px;
+        border: 1px solid #ced4da;
+        border-radius: 0.25rem;
+    }
+
+    .select2-container--bootstrap4 .select2-search__field:focus {
+        border-color: #6f42c1;
+        box-shadow: 0 0 0 0.2rem rgba(111, 66, 193, 0.25);
+    }
+</style> 

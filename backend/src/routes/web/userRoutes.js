@@ -14,7 +14,7 @@ router.get('/', async (req, res) => {
         if (user.role === 'System Administrator') {
             // System Administrator can see all active users in the company
             query = `
-                SELECT u.*, r.role_name, b.b_name, c.c_name
+                SELECT u.*, r.role_name, r.role_id, b.b_name, c.c_name
                 FROM users u
                 JOIN roles r ON u.role = r.role_id
                 JOIN branches b ON u.branch_id = b.branch_id
@@ -40,7 +40,7 @@ router.get('/', async (req, res) => {
 
             // User with privilege can see active users in their branch
             query = `
-                SELECT u.*, r.role_name, b.b_name, c.c_name
+                SELECT u.*, r.role_name, r.role_id, b.b_name, c.c_name
                 FROM users u
                 JOIN roles r ON u.role = r.role_id
                 JOIN branches b ON u.branch_id = b.branch_id
@@ -120,6 +120,91 @@ router.post('/:userId/revoke', async (req, res) => {
     } catch (error) {
         console.error('Error revoking user:', error);
         req.flash('error', 'Error revoking user');
+        res.redirect('/users');
+    }
+});
+
+// Handle user update
+router.post('/:userId/update', async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const { displayName, branch_id, role } = req.body;
+        const user = req.session.activeUser;
+
+        // Get the user to be updated
+        const [userToUpdate] = await pool.query(
+            `SELECT u.*, b.company_id, b.branch_id 
+            FROM users u
+            JOIN branches b ON u.branch_id = b.branch_id
+            WHERE u.user_id = ?`,
+            [userId]
+        );
+
+        if (userToUpdate.length === 0) {
+            req.flash('error', 'User not found');
+            return res.redirect('/users');
+        }
+
+        // Check permissions for branch and role updates
+        if (branch_id || role) {
+            if (user.role !== 'System Administrator') {
+                const [privileges] = await pool.query(
+                    `SELECT p.privilege_name 
+                     FROM user_privileges up
+                     JOIN privileges p ON up.privilege_id = p.privilege_id
+                     WHERE up.user_id = ?`,
+                    [user.user_id]
+                );
+
+                const userPrivileges = privileges.map(p => p.privilege_name);
+
+                if (branch_id && !userPrivileges.includes('assign_branch')) {
+                    req.flash('error', 'You do not have permission to change branch assignments');
+                    return res.redirect('/users');
+                }
+
+                if (role && !userPrivileges.includes('assign_role')) {
+                    req.flash('error', 'You do not have permission to change role assignments');
+                    return res.redirect('/users');
+                }
+
+                // For non-admin users, verify the user belongs to their branch
+                if (userToUpdate[0].company_id !== user.company_id || 
+                    userToUpdate[0].branch_id !== user.branch_id) {
+                    req.flash('error', 'You can only update users from your branch');
+                    return res.redirect('/users');
+                }
+            }
+        }
+
+        // Build update query dynamically
+        let updateFields = ['display_name = ?'];
+        let updateValues = [displayName];
+
+        if (branch_id) {
+            updateFields.push('branch_id = ?');
+            updateValues.push(branch_id);
+        }
+
+        if (role) {
+            updateFields.push('role = ?');
+            updateValues.push(role);
+        }
+
+        updateFields.push('updated_at = NOW()');
+        updateValues.push(userId);
+
+        // Update user
+        await pool.query(
+            `UPDATE users SET ${updateFields.join(', ')} WHERE user_id = ?`,
+            updateValues
+        );
+
+        req.flash('success', 'User details updated successfully');
+        res.redirect('/users');
+    } catch (error) {
+        console.error('Error updating user:', error);
+        req.flash('error', 'Error updating user details');
         res.redirect('/users');
     }
 });
